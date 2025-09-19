@@ -1,4 +1,6 @@
 let currentUser=null;
+let projects = [];
+let reviews = [];
 
 document.addEventListener('DOMContentLoaded',()=>{init()});
 
@@ -8,6 +10,7 @@ async function init(){
   await loadMe(token);
   setupUI();
   bindEvents();
+  loadProjects();
   loadAnalytics();
   loadReviews();
 }
@@ -66,10 +69,37 @@ function bindEvents(){
   document.getElementById('logoutBtn').addEventListener('click',()=>{localStorage.clear();window.location.href='/login.html'});
   document.getElementById('refreshBtn').addEventListener('click',loadReviews);
   document.getElementById('statusFilter').addEventListener('change',loadReviews);
+  document.getElementById('projectFilter').addEventListener('change',filterRows);
   const search=document.getElementById('searchInput');
   if(search){
     search.addEventListener('input',()=>filterRows(search.value));
   }
+}
+
+// Загрузка проектов с ценами
+async function loadProjects() {
+  try {
+    const response = await fetch('/api/quality/projects', {
+      headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+    });
+    if (!response.ok) throw new Error('Failed to fetch projects');
+    projects = await response.json();
+    populateProjectFilter();
+  } catch (error) {
+    console.error('Error loading projects:', error);
+  }
+}
+
+// Заполнение фильтра проектов
+function populateProjectFilter() {
+  const select = document.getElementById('projectFilter');
+  select.innerHTML = '<option value="">Все проекты</option>';
+  projects.forEach(project => {
+    const option = document.createElement('option');
+    option.value = project.name;
+    option.textContent = `${project.name} (${project.success_price}₽)`;
+    select.appendChild(option);
+  });
 }
 
 async function loadMe(token){
@@ -101,10 +131,15 @@ function renderReviews(rows){
   rows.forEach(r=>{
     const tr=document.createElement('tr');
     const lead=r.leads||{};
+    const project = lead.project || 'Не указан';
+    const projectPrice = projects.find(p => p.name === project)?.success_price || 3.00;
+    
     tr.innerHTML=`
       <td>${r.id.slice(0,8)}...</td>
       <td>${lead.name||'-'}</td>
       <td>${lead.phone||'-'}</td>
+      <td>${project}</td>
+      <td>${projectPrice}₽</td>
       <td><span class="status-badge ${r.status}">${r.status}</span></td>
       <td>${new Date(r.created_at).toLocaleString('ru-RU')}</td>
       <td>
@@ -127,10 +162,17 @@ function openReview(id){
 
 function filterRows(query){
   query=(query||'').toLowerCase();
+  const statusFilter = document.getElementById('statusFilter').value;
+  const projectFilter = document.getElementById('projectFilter').value;
+  
   const rows=[...document.querySelectorAll('#reviewsTableBody tr')];
   rows.forEach(tr=>{
     const text=tr.innerText.toLowerCase();
-    tr.style.display=text.includes(query)?'':'none';
+    const statusMatch = !statusFilter || tr.querySelector('.status-badge')?.textContent === statusFilter;
+    const projectMatch = !projectFilter || text.includes(projectFilter.toLowerCase());
+    const searchMatch = !query || text.includes(query);
+    
+    tr.style.display=(statusMatch && projectMatch && searchMatch)?'':'none';
   });
 }
 
@@ -151,16 +193,19 @@ function renderKPI(rows){
 
 async function approve(id){
   try{
-    const resp=await fetch(`/api/quality/reviews/${id}/approve`,{method:'POST',headers:{'Authorization':`Bearer ${localStorage.getItem('token')}`,'Content-Type':'application/json'},body:JSON.stringify({comment:''})});
+    const comment = prompt('Комментарий ОКК (необязательно):') || '';
+    const resp=await fetch(`/api/quality/reviews/${id}/approve`,{method:'POST',headers:{'Authorization':`Bearer ${localStorage.getItem('token')}`,'Content-Type':'application/json'},body:JSON.stringify({comment})});
     if(!resp.ok){throw new Error('Не удалось одобрить')}
-    notify('Одобрено','success');
+    const result = await resp.json();
+    notify(`Одобрено! Оператору зачислено ${result.amount}₽ за проект "${result.project}"`,'success');
     loadReviews();
   }catch(e){notify(e.message,'error')}
 }
 
 async function reject(id){
   try{
-    const resp=await fetch(`/api/quality/reviews/${id}/reject`,{method:'POST',headers:{'Authorization':`Bearer ${localStorage.getItem('token')}`,'Content-Type':'application/json'},body:JSON.stringify({comment:''})});
+    const comment = prompt('Причина отклонения (необязательно):') || '';
+    const resp=await fetch(`/api/quality/reviews/${id}/reject`,{method:'POST',headers:{'Authorization':`Bearer ${localStorage.getItem('token')}`,'Content-Type':'application/json'},body:JSON.stringify({comment})});
     if(!resp.ok){throw new Error('Не удалось отклонить')}
     notify('Отклонено','warning');
     loadReviews();

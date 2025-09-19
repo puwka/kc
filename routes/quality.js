@@ -139,33 +139,45 @@ router.post('/reviews/:id/approve', authenticateToken, requireQuality, async (re
     const { id } = req.params;
     const { comment } = req.body || {};
 
-    const { data: updated, error } = await supabaseAdmin
+    // Получаем данные review
+    const { data: reviewData, error: reviewError } = await supabaseAdmin
       .from('quality_reviews')
-      .update({ status: 'approved', reviewer_id: req.user.id, reviewed_at: new Date().toISOString(), comment })
-      .eq('id', id)
       .select('lead_id')
+      .eq('id', id)
       .single();
 
-    if (error) {
-      console.error('Quality approve error:', error);
-      return res.status(500).json({ error: 'Failed to approve review' });
+    if (reviewError || !reviewData) {
+      console.error('Review not found:', reviewError);
+      return res.status(404).json({ error: 'Review not found' });
     }
 
-    // Получаем данные лида
-    const { data: lead, error: leadError } = await supabaseAdmin
-      .from('leads')
-      .select('id, name, phone')
-      .eq('id', updated.lead_id)
-      .single();
+    // Используем новую функцию для одобрения лида
+    const { data: approvalResult, error: approvalError } = await supabaseAdmin
+      .rpc('approve_lead_by_qc', {
+        p_lead_id: reviewData.lead_id,
+        p_qc_comment: comment
+      });
 
-    if (!leadError && lead) {
-      const tgRes = await sendToTelegram(`✅ <b>Лид одобрен отделом качества</b>\nИмя: ${lead.name}\nТелефон: ${lead.phone}\nID: ${lead.id}`);
-      if (!tgRes?.ok && !tgRes?.skipped) {
-        console.warn('Telegram not sent:', tgRes);
-      }
+    if (approvalError) {
+      console.error('Quality approve error:', approvalError);
+      return res.status(500).json({ error: 'Failed to approve lead: ' + approvalError.message });
     }
 
-    res.json({ success: true });
+    if (!approvalResult.success) {
+      return res.status(400).json({ error: approvalResult.error });
+    }
+
+    // Отправляем уведомление в Telegram
+    const leadInfo = `✅ Лид одобрен ОКК\nID: ${reviewData.lead_id}\nСумма: ${approvalResult.amount}₽\nПроект: ${approvalResult.project}\nОператор: ${approvalResult.operator_id}`;
+    await sendToTelegram(leadInfo);
+
+    res.json({ 
+      success: true, 
+      message: 'Lead approved successfully',
+      transaction_id: approvalResult.transaction_id,
+      amount: approvalResult.amount,
+      project: approvalResult.project
+    });
   } catch (error) {
     console.error('Quality approve exception:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -178,17 +190,38 @@ router.post('/reviews/:id/reject', authenticateToken, requireQuality, async (req
     const { id } = req.params;
     const { comment } = req.body || {};
 
-    const { error } = await supabaseAdmin
+    // Получаем данные review
+    const { data: reviewData, error: reviewError } = await supabaseAdmin
       .from('quality_reviews')
-      .update({ status: 'rejected', reviewer_id: req.user.id, reviewed_at: new Date().toISOString(), comment })
-      .eq('id', id);
+      .select('lead_id')
+      .eq('id', id)
+      .single();
 
-    if (error) {
-      console.error('Quality reject error:', error);
-      return res.status(500).json({ error: 'Failed to reject review' });
+    if (reviewError || !reviewData) {
+      console.error('Review not found:', reviewError);
+      return res.status(404).json({ error: 'Review not found' });
     }
 
-    res.json({ success: true });
+    // Используем новую функцию для отклонения лида
+    const { data: rejectionResult, error: rejectionError } = await supabaseAdmin
+      .rpc('reject_lead_by_qc', {
+        p_lead_id: reviewData.lead_id,
+        p_qc_comment: comment
+      });
+
+    if (rejectionError) {
+      console.error('Quality reject error:', rejectionError);
+      return res.status(500).json({ error: 'Failed to reject lead: ' + rejectionError.message });
+    }
+
+    if (!rejectionResult.success) {
+      return res.status(400).json({ error: rejectionResult.error });
+    }
+
+    res.json({ 
+      success: true, 
+      message: 'Lead rejected successfully'
+    });
   } catch (error) {
     console.error('Quality reject exception:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -260,6 +293,24 @@ router.get('/overview', authenticateToken, requireQuality, async (req, res) => {
     res.json({ processed, approved, conversion_rate, earnings, avg_review_minutes, avg_pending_wait_minutes });
   } catch (e) {
     console.error('Quality overview exception:', e);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET /api/quality/projects - Получить проекты с ценами
+router.get('/projects', authenticateToken, requireQuality, async (req, res) => {
+  try {
+    const { data, error } = await supabaseAdmin
+      .rpc('get_projects_with_prices');
+
+    if (error) {
+      console.error('Error fetching projects with prices:', error);
+      return res.status(500).json({ error: 'Failed to fetch projects' });
+    }
+
+    res.json(data || []);
+  } catch (error) {
+    console.error('Exception fetching projects with prices:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
