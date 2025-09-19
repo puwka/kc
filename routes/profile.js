@@ -86,9 +86,29 @@ router.get('/stats', authenticateToken, async (req, res) => {
         stats.conversion_rate = processed > 0 ? 
             Math.round((stats.success / processed) * 100) : 0;
 
-        // Заработок (только для операторов)
+        // Заработок только за одобренные лиды ОКК (только для операторов)
         if (req.user.role === 'operator') {
-            stats.earnings = processed * 3;
+            const { data: approvedLeads, error: approvedError } = await supabaseAdmin
+                .from('leads')
+                .select('id, project')
+                .eq('assigned_to', req.user.id)
+                .eq('status', 'success')
+                .eq('approval_status', 'approved');
+
+            let earnings = 0;
+            if (approvedLeads && approvedLeads.length > 0) {
+                for (const lead of approvedLeads) {
+                    const { data: projectData } = await supabaseAdmin
+                        .from('projects')
+                        .select('success_price')
+                        .eq('name', lead.project)
+                        .single();
+                    
+                    earnings += projectData?.success_price || 3.00;
+                }
+            }
+            
+            stats.earnings = earnings;
         }
 
         // Прозвоненные

@@ -107,7 +107,7 @@ async function testApprovalSystem() {
             .from('user_transactions')
             .select(`
                 id, 
-                type, 
+                transaction_type, 
                 amount, 
                 description, 
                 created_at,

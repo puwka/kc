@@ -151,10 +151,14 @@ router.post('/reviews/:id/approve', authenticateToken, requireQuality, async (re
       return res.status(404).json({ error: 'Review not found' });
     }
 
+    console.log('Review data:', reviewData);
+    console.log('Lead ID type:', typeof reviewData.lead_id);
+    console.log('Lead ID value:', reviewData.lead_id);
+
     // Используем новую функцию для одобрения лида
     const { data: approvalResult, error: approvalError } = await supabaseAdmin
       .rpc('approve_lead_by_qc', {
-        p_lead_id: reviewData.lead_id,
+        p_lead_id: parseInt(reviewData.lead_id), // Принудительно преобразуем в integer
         p_qc_comment: comment
       });
 
@@ -205,7 +209,7 @@ router.post('/reviews/:id/reject', authenticateToken, requireQuality, async (req
     // Используем новую функцию для отклонения лида
     const { data: rejectionResult, error: rejectionError } = await supabaseAdmin
       .rpc('reject_lead_by_qc', {
-        p_lead_id: reviewData.lead_id,
+        p_lead_id: parseInt(reviewData.lead_id), // Принудительно преобразуем в integer
         p_qc_comment: comment
       });
 

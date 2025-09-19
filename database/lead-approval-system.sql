@@ -63,22 +63,21 @@ DECLARE
     v_operator_id UUID;
     v_success_price DECIMAL(10,2);
     v_project_name VARCHAR;
-    v_transaction_id INTEGER;
 BEGIN
     -- Получаем данные лида
     SELECT l.* INTO v_lead
     FROM leads l
     WHERE l.id = p_lead_id;
     
+    IF NOT FOUND THEN
+        RETURN json_build_object('success', false, 'error', 'Lead not found');
+    END IF;
+    
     -- Получаем данные проекта отдельно
     SELECT p.success_price, p.name
     INTO v_success_price, v_project_name
     FROM projects p
     WHERE p.name = v_lead.project;
-    
-    IF NOT FOUND THEN
-        RETURN json_build_object('success', false, 'error', 'Lead not found');
-    END IF;
     
     -- Проверяем, что лид в статусе success и ожидает одобрения
     IF v_lead.status != 'success' OR v_lead.approval_status != 'pending' THEN
@@ -102,10 +101,10 @@ BEGIN
     v_operator_id := v_lead.assigned_to;
     v_success_price := COALESCE(v_success_price, 3.00); -- Дефолтная стоимость
     
-    -- Добавляем транзакцию
+    -- Добавляем транзакцию (упрощенная версия)
     INSERT INTO user_transactions (
         user_id, 
-        type, 
+        transaction_type, 
         amount, 
         description, 
         lead_id,
@@ -118,7 +117,7 @@ BEGIN
         CASE WHEN p_qc_comment IS NOT NULL THEN '. Комментарий ОКК: ' || p_qc_comment ELSE '' END,
         p_lead_id,
         NOW()
-    ) RETURNING id INTO v_transaction_id;
+    );
     
     -- Обновляем баланс пользователя
     INSERT INTO user_balance (user_id, balance, total_earned, last_updated)
@@ -131,7 +130,6 @@ BEGIN
     
     RETURN json_build_object(
         'success', true, 
-        'transaction_id', v_transaction_id,
         'amount', v_success_price,
         'project', v_project_name,
         'operator_id', v_operator_id
