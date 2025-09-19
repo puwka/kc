@@ -4,9 +4,19 @@
 
 Проект уже подготовлен для деплоя на Vercel. Все необходимые файлы созданы:
 
-- `vercel.json` - конфигурация Vercel
+- `vercel.json` - основная конфигурация Vercel
+- `vercel-alternative.json` - альтернативная конфигурация (если основная не работает)
+- `vercel-simple.json` - упрощенная конфигурация
 - `package.json` - обновлен с необходимыми скриптами
 - `vercel-env-template.txt` - шаблон переменных окружения
+
+### Выбор конфигурации
+
+Если при деплое возникает ошибка с `functions` и `builds`, попробуйте:
+
+1. **Основная конфигурация** - `vercel.json` (рекомендуется)
+2. **Альтернативная** - замените содержимое `vercel.json` на `vercel-alternative.json`
+3. **Упрощенная** - замените содержимое `vercel.json` на `vercel-simple.json`
 
 ## Шаги деплоя
 
@@ -78,6 +88,13 @@ vercel --prod
 
 ## Troubleshooting
 
+### Ошибка "functions property cannot be used with builds property"
+
+**Решение:**
+1. Используйте текущий `vercel.json` (уже исправлен)
+2. Если ошибка повторяется, замените содержимое `vercel.json` на содержимое `vercel-simple.json`
+3. Или попробуйте `vercel-alternative.json`
+
 ### Ошибка CORS
 Добавьте домен Vercel в настройки CORS Supabase
 
@@ -86,6 +103,9 @@ vercel --prod
 
 ### Ошибка JWT
 Убедитесь, что JWT_SECRET установлен и одинаковый для всех функций
+
+### Ошибка импорта модулей
+Убедитесь, что все зависимости установлены в `package.json`
 
 ## Мониторинг
 

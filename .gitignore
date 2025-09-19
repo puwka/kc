@@ -87,3 +87,4 @@ Thumbs.db
 # Build directories
 dist/
 build/
+.vercel
