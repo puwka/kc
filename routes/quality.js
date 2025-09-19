@@ -89,6 +89,8 @@ router.get('/reviews', authenticateToken, requireQuality, async (req, res) => {
           phone, 
           assigned_to,
           project,
+          status,
+          comment,
           created_at,
           profiles!leads_assigned_to_fkey (name)
         )

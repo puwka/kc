@@ -33,3 +33,145 @@
 .status-badge.pending{background:#fff3cd;color:#856404}
 .status-badge.approved{background:#d4edda;color:#155724}
 .status-badge.rejected{background:#f8d7da;color:#721c24}
+
+/* Секция комментария оператора */
+.operator-comment-section {
+    margin-bottom: 20px;
+    padding: 16px;
+    background: #f8f9fa;
+    border-radius: 8px;
+    border: 1px solid #e9ecef;
+}
+
+.operator-comment-section h3 {
+    margin: 0 0 12px 0;
+    color: #495057;
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.operator-comment-display {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.operator-comment-display textarea {
+    width: 100%;
+    padding: 12px;
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    font-size: 14px;
+    line-height: 1.4;
+    resize: vertical;
+    min-height: 80px;
+    background-color: #f8f9fa;
+    color: #495057;
+}
+
+.operator-comment-display textarea:focus {
+    outline: none;
+    border-color: #007bff;
+    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+}
+
+.operator-comment-display textarea[readonly] {
+    background-color: #f8f9fa;
+    color: #6c757d;
+    cursor: default;
+}
+
+.btn-sm {
+    padding: 6px 12px;
+    font-size: 12px;
+    align-self: flex-start;
+}
+
+/* Стили для поля комментария ОКК */
+.status-section .comment-section textarea {
+    width: 100%;
+    padding: 12px;
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    font-size: 14px;
+    line-height: 1.4;
+    resize: vertical;
+    min-height: 80px;
+    background-color: #fff;
+    color: #495057;
+    font-family: inherit;
+}
+
+.status-section .comment-section textarea:focus {
+    outline: none;
+    border-color: #007bff;
+    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+}
+
+.status-section .comment-section label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 600;
+    color: #495057;
+    font-size: 14px;
+}
+
+/* Стили для секции комментария ОКК */
+.status-section .comment-section {
+    margin-top: 16px;
+    padding: 16px;
+    background: #f8f9fa;
+    border-radius: 8px;
+    border: 1px solid #e9ecef;
+}
+
+/* Стили для кнопок решения ОКК */
+.status-section .status-buttons {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 16px;
+    justify-content: center;
+}
+
+.status-section .status-buttons .btn {
+    flex: 1;
+    max-width: 200px;
+    padding: 12px 20px;
+    font-size: 16px;
+    font-weight: 600;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.status-section .status-buttons .btn-success {
+    background: #28a745;
+    color: white;
+}
+
+.status-section .status-buttons .btn-success:hover {
+    background: #218838;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(40, 167, 69, 0.3);
+}
+
+.status-section .status-buttons .btn-danger {
+    background: #dc3545;
+    color: white;
+}
+
+.status-section .status-buttons .btn-danger:hover {
+    background: #c82333;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(220, 53, 69, 0.3);
+}
+
+/* Стили для заголовка секции решения ОКК */
+.status-section h3 {
+    margin: 0 0 16px 0;
+    color: #495057;
+    font-size: 18px;
+    font-weight: 600;
+    text-align: center;
+}

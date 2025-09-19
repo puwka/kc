@@ -1,12 +1,12 @@
 const express = require('express');
 const supabase = require('../config/supabase');
 const supabaseAdmin = require('../config/supabase-admin');
-const { requireRole } = require('../middleware/auth');
+const { requireRole, authenticateToken } = require('../middleware/auth');
 
 const router = express.Router();
 
 // Получить всех лидов (с фильтрацией по роли)
-router.get('/', async (req, res) => {
+router.get('/', authenticateToken, async (req, res) => {
     try {
         let query = supabaseAdmin
             .from('leads')
@@ -38,7 +38,7 @@ router.get('/', async (req, res) => {
 });
 
 // Создать нового лида
-router.post('/', async (req, res) => {
+router.post('/', authenticateToken, async (req, res) => {
     try {
         const { name, phone, assigned_to } = req.body;
 
@@ -89,7 +89,7 @@ router.post('/', async (req, res) => {
 });
 
 // Обновить лида
-router.put('/:id', async (req, res) => {
+router.put('/:id', authenticateToken, async (req, res) => {
     try {
         const { id } = req.params;
         const { name, phone, status, assigned_to, comment } = req.body;
@@ -108,6 +108,11 @@ router.put('/:id', async (req, res) => {
         // Проверяем права доступа
         if (req.user.role === 'operator' && existingLead.assigned_to !== req.user.id) {
             return res.status(403).json({ error: 'You can only update your own leads' });
+        }
+        
+        // Quality и admin могут обновлять комментарии любых лидов
+        if (req.user.role === 'quality' && !comment) {
+            return res.status(403).json({ error: 'Quality role can only update comments' });
         }
 
         // Валидация статуса

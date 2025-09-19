@@ -33,6 +33,14 @@
         <div class="lead-details" id="leadDetails"></div>
       </div>
 
+      <div class="operator-comment-section">
+        <h3>Комментарий оператора</h3>
+        <div class="operator-comment-display">
+          <textarea id="operatorCommentText" placeholder="Комментарий оператора..." rows="3" readonly>Комментарий не добавлен</textarea>
+          <button id="editOperatorCommentBtn" class="btn btn-outline btn-sm">Редактировать</button>
+        </div>
+      </div>
+
       <div class="status-section">
         <h3>Решение ОКК</h3>
         <div class="status-buttons">
@@ -40,7 +48,7 @@
           <button id="rejectBtn" class="btn btn-danger status-btn">❌ Отклонить</button>
         </div>
         <div class="comment-section">
-          <label for="commentText">Комментарий (необязательно):</label>
+          <label for="commentText">Комментарий ОКК (необязательно):</label>
           <textarea id="commentText" placeholder="Добавьте примечание..." rows="3"></textarea>
         </div>
       </div>
