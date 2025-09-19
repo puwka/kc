@@ -8,7 +8,7 @@ const router = express.Router();
 // Получить общую аналитику
 router.get('/overview', async (req, res) => {
     try {
-        let query = supabaseAdmin.from('leads').select('status, assigned_to, created_at');
+        let query = supabaseAdmin.from('leads').select('status, assigned_to, created_at, approval_status');
 
         // Фильтрация по роли
         if (req.user.role === 'operator') {
@@ -27,8 +27,9 @@ router.get('/overview', async (req, res) => {
             total: leads.length,
             new: leads.filter(lead => lead.status === 'new').length,
             in_work: leads.filter(lead => lead.status === 'in_work').length,
-            success: leads.filter(lead => lead.status === 'success').length,
-            fail: leads.filter(lead => lead.status === 'fail').length
+            success: leads.filter(lead => lead.status === 'success' && lead.approval_status === 'approved').length,
+            fail: leads.filter(lead => lead.status === 'fail').length,
+            pending_approval: leads.filter(lead => lead.status === 'success' && lead.approval_status === 'pending').length
         };
 
         // Обработанные лиды (в работе + успешные + неудачные)
@@ -38,28 +39,23 @@ router.get('/overview', async (req, res) => {
         stats.conversion_rate = processed > 0 ? 
             Math.round((stats.success / processed) * 100) : 0;
 
-        // Заработок только за одобренные лиды
-        const { data: approvedLeads, error: approvedError } = await supabaseAdmin
-            .from('leads')
-            .select('id, project')
-            .eq('assigned_to', req.user.id)
-            .eq('status', 'success')
-            .eq('approval_status', 'approved');
+        // Заработок из базы данных
+        const { data: balanceData, error: balanceError } = await supabaseAdmin
+            .from('user_balance')
+            .select('balance, total_earned')
+            .eq('user_id', req.user.id)
+            .single();
 
-        let earnings = 0;
-        if (approvedLeads && approvedLeads.length > 0) {
-            for (const lead of approvedLeads) {
-                const { data: projectData } = await supabaseAdmin
-                    .from('projects')
-                    .select('success_price')
-                    .eq('name', lead.project)
-                    .single();
-                
-                earnings += projectData?.success_price || 3.00;
-            }
+        if (balanceError) {
+            console.error('Error fetching user balance:', balanceError);
+            stats.earnings = 0;
+            stats.balance = 0;
+            stats.total_earned = 0;
+        } else {
+            stats.earnings = balanceData?.total_earned || 0;
+            stats.balance = balanceData?.balance || 0;
+            stats.total_earned = balanceData?.total_earned || 0;
         }
-        
-        stats.earnings = earnings;
 
         // Прозвоненные (все кроме новых)
         stats.called = processed;

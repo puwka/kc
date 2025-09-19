@@ -23,6 +23,23 @@ function initializeApp() {
 
     // Настройка обработчиков событий
     setupEventListeners();
+    
+    // Проверяем, нужно ли обновить аналитику после возврата со страницы звонка
+    if (sessionStorage.getItem('shouldAutoCallNext') === 'true') {
+        sessionStorage.removeItem('shouldAutoCallNext');
+        // Небольшая задержка для обновления данных
+        setTimeout(() => {
+            loadAnalytics();
+        }, 1000);
+    }
+    
+    if (sessionStorage.getItem('shouldRefreshAnalytics') === 'true') {
+        sessionStorage.removeItem('shouldRefreshAnalytics');
+        // Небольшая задержка для обновления данных
+        setTimeout(() => {
+            loadAnalytics();
+        }, 1000);
+    }
 }
 
 function setupEventListeners() {

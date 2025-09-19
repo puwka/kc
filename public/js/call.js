@@ -440,6 +440,19 @@ async function completeCall(status) {
         // Показываем загрузочный экран для плавного перехода
         showLoader();
         
+        // Обновляем аналитику перед переходом
+        try {
+            // Небольшая задержка, чтобы триггер успел сработать
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            // Обновляем аналитику на главной странице
+            if (window.parent && window.parent.loadAnalytics) {
+                window.parent.loadAnalytics();
+            }
+        } catch (error) {
+            console.log('Не удалось обновить аналитику:', error);
+        }
+        
         // Проверяем автозвонок
         const autoCall = localStorage.getItem('autoCall') === 'true';
         
@@ -450,7 +463,8 @@ async function completeCall(status) {
                 window.location.href = '/';
             }, 800);
         } else {
-            // Возвращаемся на главную страницу
+            // Сообщаем главной странице, что нужно обновить аналитику
+            sessionStorage.setItem('shouldRefreshAnalytics', 'true');
             setTimeout(() => {
                 window.location.href = '/';
             }, 2000);
