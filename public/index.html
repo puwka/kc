@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CRM Колл-центра</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div id="app">
+        <!-- Навигация -->
+        <nav class="navbar">
+            <div class="nav-container">
+                <h1 class="nav-title">CRM Колл-центра</h1>
+                <div class="nav-user" id="navUser" style="display: none;">
+                    <a href="/profile.html" id="userName" class="user-name-link"></a>
+                    <span id="userRole" class="user-role"></span>
+                    <a href="/quality.html" id="qualityLink" class="btn btn-outline" style="display:none;">Отдел качества</a>
+                    <a href="/admin.html" id="adminLink" class="btn btn-outline" style="display: none;">Админ панель</a>
+                    <a href="/scripts.html" id="scriptsLink" class="btn btn-outline" style="display: none;">Скрипты</a>
+                    <button id="logoutBtn" class="btn btn-secondary">Выйти</button>
+                </div>
+            </div>
+        </nav>
+
+        <!-- Основной контент -->
+        <main class="main-content">
+            <!-- Редирект на страницу входа -->
+            <div id="authPage" class="page">
+                <div class="auth-container">
+                    <div class="redirect-message">
+                        <h2>Перенаправление...</h2>
+                        <p>Вы будете перенаправлены на страницу входа</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Главная страница -->
+            <div id="dashboardPage" class="page" style="display: none;">
+                <div class="dashboard-container">
+                    <!-- Глобальный лоадер -->
+                    <div id="loaderOverlay" class="loader-overlay" style="display: none;">
+                        <div class="loader-spinner"></div>
+                        <div class="loader-text">Загрузка...</div>
+                    </div>
+                    <!-- Аналитика -->
+                    <div class="analytics-section">
+                        <div class="section-header">
+                            <h2>Аналитика</h2>
+                            <button id="callBtn" class="btn btn-success" style="display: none;">📞 Звонить</button>
+                        </div>
+                        <div class="stats-grid" id="statsGrid">
+                            <!-- Статистика будет загружена динамически -->
+                        </div>
+                    </div>
+
+                    <!-- Воронка (только для супервайзеров и админов) -->
+                    <div class="funnel-section" id="funnelSection" style="display: none;">
+                        <h2>Воронка продаж</h2>
+                        <div class="funnel-chart" id="funnelChart">
+                            <!-- Воронка будет загружена динамически -->
+                        </div>
+                    </div>
+
+                    <!-- Управление лидами (только для супервайзеров и админов) -->
+                    <div class="leads-section" id="leadsSection" style="display: none;">
+                        <div class="section-header">
+                            <h2>Лиды</h2>
+                            <button id="addLeadBtn" class="btn btn-primary">Добавить лида</button>
+                        </div>
+
+                        <!-- Фильтры -->
+                        <div class="filters">
+                            <select id="statusFilter">
+                                <option value="">Все статусы</option>
+                                <option value="new">Новые</option>
+                                <option value="in_work">В работе</option>
+                                <option value="success">Успешные</option>
+                                <option value="fail">Неудачные</option>
+                            </select>
+                            <button id="refreshBtn" class="btn btn-secondary">Обновить</button>
+                        </div>
+
+                        <!-- Таблица лидов -->
+                        <div class="table-container">
+                            <table class="leads-table" id="leadsTable">
+                                <thead>
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>Имя</th>
+                                        <th>Телефон</th>
+                                        <th>Статус</th>
+                                        <th>Назначен</th>
+                                        <th>Дата создания</th>
+                                        <th>Действия</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="leadsTableBody">
+                                    <!-- Данные будут загружены динамически -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Панель оператора -->
+                    <div class="operator-panel" id="operatorPanel" style="display: none;">
+                        <div class="call-section">
+                            <div class="call-info">
+                                <h3>Готов к работе</h3>
+                                <p>Нажмите кнопку "Звонить" для начала работы с лидами</p>
+                            </div>
+                            
+                            <div class="call-controls">
+                                <button id="operatorCallBtn" class="btn btn-success call-btn" disabled>
+                                    📞 Звонить
+                                </button>
+                                
+                                <button id="cancelCallBtn" class="btn btn-danger call-btn" style="display: none;">
+                                    ❌ Отменить
+                                </button>
+                                
+                                <div class="auto-call-option">
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" id="autoCallCheckbox">
+                                        <span class="checkmark"></span>
+                                        Автоматически звонить следующему лиду после завершения обработки
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- Модальное окно для добавления/редактирования лида -->
+        <div id="leadModal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3 id="modalTitle">Добавить лида</h3>
+                    <span class="close">&times;</span>
+                </div>
+                <form id="leadForm">
+                    <input type="hidden" id="leadId">
+                    <div class="form-group">
+                        <label for="leadName">Имя:</label>
+                        <input type="text" id="leadName" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="leadPhone">Телефон:</label>
+                        <input type="tel" id="leadPhone" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="leadStatus">Статус:</label>
+                        <select id="leadStatus">
+                            <option value="new">Новый</option>
+                            <option value="in_work">В работе</option>
+                            <option value="success">Успешный</option>
+                            <option value="fail">Неудачный</option>
+                        </select>
+                    </div>
+                    <div class="form-group" id="assignedToGroup" style="display: none;">
+                        <label for="leadAssignedTo">Назначить:</label>
+                        <select id="leadAssignedTo">
+                            <!-- Опции будут загружены динамически -->
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="leadComment">Комментарий:</label>
+                        <textarea id="leadComment" rows="3"></textarea>
+                    </div>
+                    <div class="modal-actions">
+                        <button type="button" class="btn btn-secondary" id="cancelBtn">Отмена</button>
+                        <button type="submit" class="btn btn-primary">Сохранить</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Модальное окно обработки лида для операторов -->
+        <div id="leadProcessModal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>Обработка лида</h3>
+                    <span class="close" id="closeProcessModal">&times;</span>
+                </div>
+                <div class="lead-info">
+                    <div class="lead-details">
+                        <h4 id="processLeadName">-</h4>
+                        <p id="processLeadPhone">-</p>
+                        <p id="processLeadCreated">-</p>
+                    </div>
+                    <div class="lead-actions">
+                        <button id="successBtn" class="btn btn-success">✅ Успешно</button>
+                        <button id="failBtn" class="btn btn-danger">❌ Неудачно</button>
+                        <button id="skipBtn" class="btn btn-warning">⏭️ Пропустить</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Уведомления -->
+        <div id="notifications" class="notifications"></div>
+    </div>
+
+    <script src="js/app.js"></script>
+</body>
+</html>

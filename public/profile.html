@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Профиль - CRM Колл-центра</title>
+    <link rel="stylesheet" href="css/style.css">
+    <style>
+        .profile-container {
+            max-width: 800px;
+            margin: 2rem auto;
+            padding: 0 2rem;
+        }
+        
+        .profile-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 2rem;
+            border-radius: 10px;
+            margin-bottom: 2rem;
+            text-align: center;
+        }
+        
+        .profile-avatar {
+            width: 100px;
+            height: 100px;
+            background: rgba(255,255,255,0.2);
+            border-radius: 50%;
+            margin: 0 auto 1rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2rem;
+            font-weight: bold;
+        }
+        
+        .profile-info {
+            background: white;
+            border-radius: 10px;
+            padding: 2rem;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 2rem;
+        }
+        
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1rem;
+        }
+        
+        .info-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 1rem;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+        
+        .info-label {
+            font-weight: 500;
+            color: #666;
+        }
+        
+        .info-value {
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .stats-section {
+            background: white;
+            border-radius: 10px;
+            padding: 2rem;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .back-btn {
+            background: #6c757d;
+            color: white;
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 1rem;
+            margin-bottom: 2rem;
+            text-decoration: none;
+            display: inline-block;
+        }
+        
+        .back-btn:hover {
+            background: #5a6268;
+        }
+        
+        .edit-form {
+            display: none;
+            margin-top: 1rem;
+        }
+        
+        .edit-form.active {
+            display: block;
+        }
+        
+        .form-row {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+        
+        .form-row .form-group {
+            flex: 1;
+        }
+        
+        /* Баланс */
+        .balance-section, .earnings-section, .transactions-section {
+            background: white;
+            border-radius: 10px;
+            padding: 2rem;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 2rem;
+        }
+        
+        .balance-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+        
+        .balance-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 1.5rem;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+        
+        .balance-icon {
+            font-size: 2rem;
+            opacity: 0.8;
+        }
+        
+        .balance-info {
+            flex: 1;
+        }
+        
+        .balance-label {
+            font-size: 0.9rem;
+            opacity: 0.8;
+            margin-bottom: 0.5rem;
+        }
+        
+        .balance-value {
+            font-size: 1.5rem;
+            font-weight: bold;
+        }
+        
+        /* Статистика заработка */
+        .period-select {
+            padding: 0.5rem 1rem;
+            border: 2px solid #e1e8ed;
+            border-radius: 6px;
+            background: white;
+            font-size: 0.9rem;
+        }
+        
+        .earnings-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+        
+        .earnings-stat-card {
+            background: #f8f9fa;
+            padding: 1rem;
+            border-radius: 8px;
+            text-align: center;
+        }
+        
+        .earnings-stat-value {
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: #2c3e50;
+            margin-bottom: 0.5rem;
+        }
+        
+        .earnings-stat-label {
+            font-size: 0.9rem;
+            color: #666;
+        }
+        
+        /* Таблица транзакций */
+        .transactions-table-container {
+            overflow-x: auto;
+            border-radius: 8px;
+            border: 1px solid #e1e8ed;
+            margin-top: 1rem;
+        }
+        
+        .transactions-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+        }
+        
+        .transactions-table th,
+        .transactions-table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #e1e8ed;
+        }
+        
+        .transactions-table th {
+            background: #f8f9fa;
+            font-weight: 600;
+            color: #2c3e50;
+            font-size: 0.9rem;
+        }
+        
+        .transactions-table td {
+            color: #2c3e50;
+            font-size: 0.9rem;
+        }
+        
+        .transactions-table tr:hover {
+            background: #f8f9fa;
+        }
+        
+        .transaction-type {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            font-weight: 500;
+        }
+        
+        .transaction-type.earned {
+            background: #d4edda;
+            color: #155724;
+        }
+        
+        .transaction-type.bonus {
+            background: #d1ecf1;
+            color: #0c5460;
+        }
+        
+        .transaction-type.penalty {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        
+        .transaction-type.withdrawal {
+            background: #fff3cd;
+            color: #856404;
+        }
+        
+        .transaction-type.adjustment {
+            background: #e2e3e5;
+            color: #383d41;
+        }
+        
+        .transaction-amount {
+            font-weight: 600;
+        }
+        
+        .transaction-amount.positive {
+            color: #28a745;
+        }
+        
+        .transaction-amount.negative {
+            color: #dc3545;
+        }
+        
+        .loading-indicator {
+            text-align: center;
+            padding: 1rem;
+            color: #666;
+            font-style: italic;
+        }
+        
+        /* Адаптивность */
+        @media (max-width: 768px) {
+            .balance-cards {
+                grid-template-columns: 1fr;
+            }
+            
+            .earnings-stats {
+                grid-template-columns: 1fr;
+            }
+            
+            .transactions-table th,
+            .transactions-table td {
+                padding: 8px;
+                font-size: 0.8rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <!-- Навигация -->
+        <nav class="navbar">
+            <div class="nav-container">
+                <h1 class="nav-title">CRM Колл-центра</h1>
+                <div class="nav-user">
+                    <span id="userName"></span>
+                    <span id="userRole" class="user-role"></span>
+                    <button id="logoutBtn" class="btn btn-secondary">Выйти</button>
+                </div>
+            </div>
+        </nav>
+
+        <!-- Основной контент -->
+        <main class="main-content">
+            <div class="profile-container">
+                <a href="/" class="back-btn">← Назад к дашборду</a>
+                
+                <!-- Заголовок профиля -->
+                <div class="profile-header">
+                    <div class="profile-avatar" id="profileAvatar">U</div>
+                    <h2 id="profileName">Загрузка...</h2>
+                    <p id="profileRole">Загрузка...</p>
+                </div>
+
+                <!-- Информация профиля -->
+                <div class="profile-info">
+                    <div class="section-header">
+                        <h3>Информация профиля</h3>
+                        <button id="editProfileBtn" class="btn btn-primary">Редактировать</button>
+                    </div>
+                    
+                    <div class="info-grid">
+                        <div class="info-item">
+                            <span class="info-label">Имя:</span>
+                            <span class="info-value" id="profileNameValue">-</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Email:</span>
+                            <span class="info-value" id="profileEmailValue">-</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Роль:</span>
+                            <span class="info-value" id="profileRoleValue">-</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Дата регистрации:</span>
+                            <span class="info-value" id="profileCreatedValue">-</span>
+                        </div>
+                    </div>
+
+                    <!-- Форма редактирования -->
+                    <div class="edit-form" id="editForm">
+                        <h4>Редактировать профиль</h4>
+                        <form id="profileForm">
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="editName">Имя:</label>
+                                    <input type="text" id="editName" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="editEmail">Email:</label>
+                                    <input type="email" id="editEmail" required>
+                                </div>
+                            </div>
+                            <div class="modal-actions">
+                                <button type="button" class="btn btn-secondary" id="cancelEditBtn">Отмена</button>
+                                <button type="submit" class="btn btn-primary">Сохранить</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Баланс -->
+                <div class="balance-section">
+                    <div class="section-header">
+                        <h3>Ваш баланс</h3>
+                        <button id="refreshBalanceBtn" class="btn btn-outline">Обновить</button>
+                    </div>
+                    
+                    <div class="balance-cards">
+                        <div class="balance-card">
+                            <div class="balance-icon">💰</div>
+                            <div class="balance-info">
+                                <div class="balance-label">Текущий баланс</div>
+                                <div class="balance-value" id="currentBalance">0 ₽</div>
+                            </div>
+                        </div>
+                        <div class="balance-card">
+                            <div class="balance-icon">📈</div>
+                            <div class="balance-info">
+                                <div class="balance-label">Всего заработано</div>
+                                <div class="balance-value" id="totalEarned">0 ₽</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Статистика заработка -->
+                <div class="earnings-section">
+                    <div class="section-header">
+                        <h3>Статистика заработка</h3>
+                        <select id="earningsPeriod" class="period-select">
+                            <option value="day">За день</option>
+                            <option value="week">За неделю</option>
+                            <option value="month" selected>За месяц</option>
+                            <option value="year">За год</option>
+                        </select>
+                    </div>
+                    
+                    <div class="earnings-stats" id="earningsStats">
+                        <!-- Статистика будет загружена динамически -->
+                    </div>
+                </div>
+
+                <!-- История транзакций -->
+                <div class="transactions-section">
+                    <div class="section-header">
+                        <h3>История транзакций</h3>
+                        <button id="loadMoreTransactions" class="btn btn-outline">Загрузить еще</button>
+                    </div>
+                    
+                    <div class="transactions-table-container">
+                        <table class="transactions-table" id="transactionsTable">
+                            <thead>
+                                <tr>
+                                    <th>Дата</th>
+                                    <th>Тип</th>
+                                    <th>Описание</th>
+                                    <th>Сумма</th>
+                                </tr>
+                            </thead>
+                            <tbody id="transactionsTableBody">
+                                <!-- Транзакции будут загружены динамически -->
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <div id="transactionsLoading" class="loading-indicator" style="display: none;">
+                        Загрузка транзакций...
+                    </div>
+                </div>
+
+                <!-- Общая статистика -->
+                <div class="stats-section">
+                    <h3>Общая статистика</h3>
+                    <div class="stats-grid" id="profileStats">
+                        <!-- Статистика будет загружена динамически -->
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- Уведомления -->
+        <div id="notifications" class="notifications"></div>
+    </div>
+
+    <script src="js/profile.js"></script>
+</body>
+</html>

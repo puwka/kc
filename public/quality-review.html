@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Проверка лида - ОКК</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/call.css">
+  <link rel="stylesheet" href="css/quality.css">
+</head>
+<body>
+  <header class="header">
+    <div class="header-content">
+      <div class="logo">
+        <h1>ОКК — Проверка лида</h1>
+      </div>
+      <div class="user-info">
+        <span id="userName">Загрузка...</span>
+        <span id="userRole" class="role-badge">quality</span>
+        <a href="/quality.html" class="btn btn-outline">К списку</a>
+        <button id="logoutBtn" class="btn btn-secondary">Выйти</button>
+      </div>
+    </div>
+  </header>
+
+  <div class="call-container">
+    <div class="call-left-panel">
+      <div class="lead-info">
+        <div class="lead-header">
+          <h2>Информация о лиде</h2>
+          <div class="inline-timer" id="inlineTimer" style="opacity:.6">Прослушивание</div>
+        </div>
+        <div class="lead-details" id="leadDetails"></div>
+      </div>
+
+      <div class="status-section">
+        <h3>Решение ОКК</h3>
+        <div class="status-buttons">
+          <button id="approveBtn" class="btn btn-success status-btn">✅ Одобрить</button>
+          <button id="rejectBtn" class="btn btn-danger status-btn">❌ Отклонить</button>
+        </div>
+        <div class="comment-section">
+          <label for="commentText">Комментарий (необязательно):</label>
+          <textarea id="commentText" placeholder="Добавьте примечание..." rows="3"></textarea>
+        </div>
+      </div>
+    </div>
+
+    <div class="call-right-panel">
+      <div class="script-section">
+        <div class="section-header">
+          <h2>Скрипт звонка</h2>
+        </div>
+        <div id="scriptContent" class="script-content"></div>
+
+        <div class="audio-section" style="margin-top:16px;">
+          <h3>Запись разговора</h3>
+          <audio id="callAudio" controls style="width:100%">
+            <source id="audioSource" src="" type="audio/mpeg">
+            Ваш браузер не поддерживает аудио.
+          </audio>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="loaderOverlay" class="loader-overlay" style="display:none;">
+    <div class="loader-spinner"></div>
+    <div class="loader-text">Загрузка...</div>
+  </div>
+
+  <div id="notifications" class="notifications"></div>
+
+  <script src="js/quality-review.js"></script>
+</body>
+</html>

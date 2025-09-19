@@ -1,0 +1,35 @@
+/* Контейнер */
+.quality-container{max-width:1200px;margin:2rem auto;padding:0 2rem}
+
+/* Современные карточки аналитики */
+.stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:16px}
+.stat-card{background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);color:#fff;border-radius:14px;padding:18px 16px;box-shadow:0 10px 24px rgba(0,0,0,.08);transform:translateY(0);transition:transform .2s ease,box-shadow .2s ease}
+.stat-card:hover{transform:translateY(-3px);box-shadow:0 16px 28px rgba(0,0,0,.12)}
+.stat-card .stat-value{font-size:28px;font-weight:700;margin-bottom:6px}
+.stat-card .stat-label{opacity:.9;font-size:14px}
+
+/* Быстрые KPI (плашки под фильтрами) */
+.kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin:12px 0 20px}
+.kpi{background:#fff;border:1px solid #eef0f3;border-radius:12px;padding:10px 12px;display:flex;align-items:center;gap:10px;box-shadow:0 6px 16px rgba(0,0,0,.05)}
+.kpi .icon{font-size:18px}
+.kpi .value{font-weight:700}
+.kpi .label{font-size:12px;color:#6b7280}
+
+/* Таблица заявок */
+.reviews-table-container{overflow-x:auto;border:1px solid #e1e8ed;border-radius:14px;background:#fff;box-shadow:0 8px 20px rgba(0,0,0,.06)}
+.reviews-table{width:100%;border-collapse:collapse}
+.reviews-table th,.reviews-table td{padding:14px 16px;border-bottom:1px solid #f0f2f5;text-align:left}
+.reviews-table th{background:#f8f9fa;font-weight:600;color:#2c3e50;text-transform:uppercase;letter-spacing:.5px;font-size:12px}
+
+.action-buttons{display:flex;gap:8px}
+.btn-approve{background:#28a745;color:#fff}
+.btn-reject{background:#dc3545;color:#fff}
+.btn-approve,.btn-reject,.btn-review{border:none;border-radius:8px;padding:9px 12px;cursor:pointer;transition:transform .1s ease,opacity .2s}
+.btn-approve:hover,.btn-reject:hover,.btn-review:hover{opacity:.9}
+.btn-approve:active,.btn-reject:active,.btn-review:active{transform:scale(.98)}
+.btn-review{background:#ffffff;border:1px solid #e1e8ed}
+
+.status-badge{display:inline-block;padding:5px 9px;border-radius:20px;font-size:12px;font-weight:700}
+.status-badge.pending{background:#fff3cd;color:#856404}
+.status-badge.approved{background:#d4edda;color:#155724}
+.status-badge.rejected{background:#f8d7da;color:#721c24}

@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Звонок - CRM</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/call.css">
+</head>
+<body>
+    <!-- Шапка -->
+    <header class="header">
+        <div class="header-content">
+            <div class="logo">
+                <h1>CRM Колл-центра</h1>
+            </div>
+            <div class="user-info">
+                <span id="userName">Загрузка...</span>
+                <span id="userRole" class="role-badge">Загрузка...</span>
+                <button id="logoutBtn" class="btn btn-outline">Выйти</button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Основной контент -->
+    <div class="call-container">
+        <!-- Левая панель - информация о лиде -->
+        <div class="call-left-panel">
+            <div class="lead-info">
+                <div class="lead-header">
+                    <h2>Информация о лиде</h2>
+                    <div class="inline-timer" id="inlineTimer">
+                        <span class="timer-display-sm"><span id="timerMinutes">00</span>:<span id="timerSeconds">00</span></span>
+                    </div>
+                </div>
+                <div class="lead-details" id="leadDetails">
+                    <!-- Информация о лиде будет загружена динамически -->
+                </div>
+            </div>
+
+            <!-- Кнопка сброса -->
+            <div class="call-actions">
+                <button id="hangupBtn" class="btn btn-danger btn-hangup">
+                    📞 Сбросить
+                </button>
+            </div>
+
+            <!-- Статусы и комментарий -->
+            <div class="status-section">
+                <h3>Результат звонка</h3>
+                <div class="status-buttons">
+                    <button id="successBtn" class="btn btn-success status-btn">
+                        ✅ Успех
+                    </button>
+                    <button id="failBtn" class="btn btn-danger status-btn">
+                        ❌ Неудача
+                    </button>
+                    <button id="skipBtn" class="btn btn-warning status-btn">
+                        ⏭️ Пропустить
+                    </button>
+                </div>
+                
+                <div class="comment-section">
+                    <label for="commentText">Комментарий:</label>
+                    <textarea id="commentText" placeholder="Введите комментарий к звонку..." rows="4"></textarea>
+                </div>
+            </div>
+        </div>
+
+        <!-- Правая панель - скрипт -->
+        <div class="call-right-panel">
+            <div class="script-section">
+                <h2>Скрипт для звонка</h2>
+                <div class="script-content" id="scriptContent">
+                    <!-- Скрипт будет загружен динамически -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Глобальный лоадер -->
+    <div id="loaderOverlay" class="loader-overlay" style="display: none;">
+        <div class="loader-spinner"></div>
+        <div class="loader-text">Переход на главную страницу...</div>
+    </div>
+
+    <!-- Уведомления -->
+    <div id="notifications" class="notifications"></div>
+
+    <script src="js/call.js"></script>
+</body>
+</html>

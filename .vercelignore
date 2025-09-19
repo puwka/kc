@@ -1,0 +1,19 @@
+# Vercel ignore file
+node_modules
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+*.log
+.DS_Store
+.vscode
+.idea
+*.md
+!VERCEL_DEPLOY.md
+test-*.js
+add-test-leads.js
+check-balance-tables.js
+test-balance-api.js
+test-api-direct.js
+test-server-api.js

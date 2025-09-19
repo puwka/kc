@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Вход - CRM Колл-центра</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/login.css">
+</head>
+<body>
+    <div class="login-container">
+        <div class="login-card">
+            <div class="login-header">
+                <h1>CRM Колл-центра</h1>
+                <p>Вход в систему</p>
+            </div>
+
+            <form id="loginForm" class="login-form">
+                <div class="form-group">
+                    <label for="loginEmail">Email:</label>
+                    <input type="email" id="loginEmail" required placeholder="Введите ваш email">
+                </div>
+                <div class="form-group">
+                    <label for="loginPassword">Пароль:</label>
+                    <input type="password" id="loginPassword" required placeholder="Введите пароль">
+                </div>
+                <button type="submit" class="btn btn-primary btn-login">
+                    <span class="btn-text">Войти</span>
+                    <div class="btn-spinner" style="display: none;"></div>
+                </button>
+            </form>
+
+            <div class="login-footer">
+                <p>Нужна помощь? Обратитесь к администратору</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Глобальный лоадер -->
+    <div id="loaderOverlay" class="loader-overlay" style="display: none;">
+        <div class="loader-spinner"></div>
+        <div class="loader-text">Вход в систему...</div>
+    </div>
+
+    <!-- Уведомления -->
+    <div id="notifications" class="notifications"></div>
+
+    <script src="js/login.js"></script>
+</body>
+</html>

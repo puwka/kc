@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Управление скриптами - CRM</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/scripts.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <nav class="nav">
+            <div class="nav-content">
+                <h1 class="nav-title">CRM Колл-центра</h1>
+                <div class="nav-user" id="navUser">
+                    <a href="profile.html" id="userName" class="user-name-link">Загрузка...</a>
+                    <button onclick="logout()" class="btn btn-secondary">Выйти</button>
+                </div>
+            </div>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <div class="scripts-container">
+                <!-- Header Section -->
+                <div class="page-header">
+                    <div class="header-content">
+                        <h1>Управление скриптами</h1>
+                        <p class="page-description">Создавайте и управляйте проектами и скриптами для диалогов</p>
+                    </div>
+                    <div class="header-actions">
+                        <button id="addProjectBtn" class="btn btn-primary">
+                            <i class="icon">📁</i>
+                            Новый проект
+                        </button>
+                        <button id="addScriptBtn" class="btn btn-primary">
+                            <i class="icon">📝</i>
+                            Новый скрипт
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Stats Cards -->
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon">📁</div>
+                        <div class="stat-content">
+                            <div class="stat-number" id="projectsCount">0</div>
+                            <div class="stat-label">Проектов</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">📝</div>
+                        <div class="stat-content">
+                            <div class="stat-number" id="scriptsCount">0</div>
+                            <div class="stat-label">Скриптов</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">✅</div>
+                        <div class="stat-content">
+                            <div class="stat-number" id="activeScriptsCount">0</div>
+                            <div class="stat-label">Активных</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Projects Section -->
+                <div class="content-section">
+                    <div class="section-header">
+                        <h2>Проекты</h2>
+                        <div class="section-actions">
+                            <button id="refreshProjectsBtn" class="btn btn-outline">
+                                <i class="icon">🔄</i>
+                                Обновить
+                            </button>
+                        </div>
+                    </div>
+                    <div id="projectsList" class="projects-grid">
+                        <!-- Projects will be loaded here -->
+                    </div>
+                </div>
+
+                <!-- Scripts Section -->
+                <div class="content-section">
+                    <div class="section-header">
+                        <h2>Скрипты</h2>
+                        <div class="section-actions">
+                            <div class="filters">
+                                <select id="projectFilter" class="filter-select">
+                                    <option value="">Все проекты</option>
+                                </select>
+                                <select id="statusFilter" class="filter-select">
+                                    <option value="">Все статусы</option>
+                                    <option value="active">Активные</option>
+                                    <option value="inactive">Неактивные</option>
+                                </select>
+                                <input type="text" id="searchScripts" placeholder="Поиск скриптов..." class="search-input">
+                            </div>
+                            <button id="refreshScriptsBtn" class="btn btn-outline">
+                                <i class="icon">🔄</i>
+                                Обновить
+                            </button>
+                        </div>
+                    </div>
+                    <div id="scriptsList" class="scripts-grid">
+                        <!-- Scripts will be loaded here -->
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- Modals -->
+        <!-- Add Project Modal -->
+        <div id="projectModal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3 id="projectModalTitle">Добавить проект</h3>
+                    <button class="close-btn" onclick="closeModal('projectModal')">
+                        <i class="icon">✕</i>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <form id="projectForm">
+                        <div class="form-group">
+                            <label for="projectName">Название проекта *</label>
+                            <input type="text" id="projectName" required placeholder="Введите название проекта">
+                        </div>
+                        <div class="form-group">
+                            <label for="projectDescription">Описание</label>
+                            <textarea id="projectDescription" rows="3" placeholder="Краткое описание проекта"></textarea>
+                        </div>
+                        <div class="form-actions">
+                            <button type="button" onclick="closeModal('projectModal')" class="btn btn-outline">Отмена</button>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="icon">💾</i>
+                                Сохранить
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Add/Edit Script Modal -->
+        <div id="scriptModal" class="modal">
+            <div class="modal-content large">
+                <div class="modal-header">
+                    <h3 id="scriptModalTitle">Добавить скрипт</h3>
+                    <button class="close-btn" onclick="closeModal('scriptModal')">
+                        <i class="icon">✕</i>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <form id="scriptForm">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="scriptProject">Проект *</label>
+                                <select id="scriptProject" required>
+                                    <option value="">Выберите проект</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="scriptTitle">Название скрипта *</label>
+                                <input type="text" id="scriptTitle" required placeholder="Введите название скрипта">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="scriptContent">Содержимое скрипта *</label>
+                            <div class="editor-container">
+                                <div class="editor-toolbar">
+                                    <button type="button" onclick="insertTag('h3')" class="toolbar-btn">H3</button>
+                                    <button type="button" onclick="insertTag('p')" class="toolbar-btn">P</button>
+                                    <button type="button" onclick="insertTag('strong')" class="toolbar-btn">B</button>
+                                    <button type="button" onclick="insertTag('em')" class="toolbar-btn">I</button>
+                                    <button type="button" onclick="insertTag('br')" class="toolbar-btn">BR</button>
+                                </div>
+                                <textarea id="scriptContent" rows="15" required placeholder="Введите HTML-код скрипта..."></textarea>
+                            </div>
+                        </div>
+                        <div class="form-actions">
+                            <button type="button" onclick="closeModal('scriptModal')" class="btn btn-outline">Отмена</button>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="icon">💾</i>
+                                Сохранить
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notifications -->
+    <div id="notifications" class="notifications"></div>
+
+    <script src="js/scripts.js"></script>
+</body>
+</html>

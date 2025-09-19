@@ -1,0 +1,18 @@
+# Vercel Environment Variables
+# Скопируйте эти переменные в настройки Vercel
+
+# Supabase Configuration
+SUPABASE_URL=your_supabase_url_here
+SUPABASE_ANON_KEY=your_supabase_anon_key_here
+SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key_here
+
+# Server Configuration
+PORT=3000
+NODE_ENV=production
+
+# Telegram Bot Configuration (опционально)
+TELEGRAM_BOT_TOKEN=your_telegram_bot_token_here
+TELEGRAM_GROUP_ID=your_telegram_group_id_here
+
+# JWT Secret (сгенерируйте новый для продакшена)
+JWT_SECRET=your_jwt_secret_here

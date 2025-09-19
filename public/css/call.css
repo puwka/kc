@@ -1,0 +1,376 @@
+/* Основные стили страницы */
+body {
+    margin: 0;
+    padding: 0;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: #f8f9fa;
+    min-height: 100vh;
+}
+
+/* Шапка (как на главной) */
+.header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 12px 0;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+}
+
+.header-content {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.logo h1 { margin: 0; font-size: 20px; }
+.role-badge { margin-left: 8px; opacity: 0.9; }
+/* Стили для страницы звонка */
+
+.call-container {
+    display: flex;
+    height: calc(100vh - 80px);
+    gap: 20px;
+    padding: 20px;
+    background: #f8f9fa;
+}
+
+.call-left-panel {
+    flex: 1;
+    background: white;
+    border-radius: 15px;
+    padding: 25px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+    display: flex;
+    flex-direction: column;
+    gap: 25px;
+}
+
+.call-right-panel {
+    flex: 1;
+    background: white;
+    border-radius: 15px;
+    padding: 25px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+    overflow-y: auto;
+}
+
+/* Убрали нижнюю линию у h2 в пользу единой линии у заголовка блока */
+.lead-info h2 {
+    color: #2c3e50;
+    margin: 0;
+    font-size: 24px;
+}
+
+.lead-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    border-bottom: 3px solid #3498db;
+    padding-bottom: 10px;
+    margin-bottom: 20px;
+}
+
+.inline-timer .timer-display-sm {
+    font-size: 18px;
+    font-weight: 700;
+    font-family: 'Courier New', monospace;
+    color: #2c3e50;
+    padding: 6px 12px;
+    background: #eef5ff;
+    border-radius: 10px;
+    border: 1px solid #d6e4ff;
+}
+
+.lead-details {
+    background: #f8f9fa;
+    border-radius: 10px;
+    padding: 20px;
+    border-left: 4px solid #3498db;
+}
+
+.lead-details .detail-item {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 15px;
+    padding: 10px 0;
+    border-bottom: 1px solid #e9ecef;
+}
+
+.lead-details .detail-item:last-child {
+    border-bottom: none;
+    margin-bottom: 0;
+}
+
+.lead-details .detail-label {
+    font-weight: 600;
+    color: #495057;
+    font-size: 16px;
+}
+
+.lead-details .detail-value {
+    color: #2c3e50;
+    font-size: 16px;
+    text-align: right;
+}
+
+.call-actions {
+    text-align: center;
+    padding: 20px 0;
+}
+
+.btn-hangup {
+    font-size: 18px;
+    padding: 15px 30px;
+    border-radius: 50px;
+    background: linear-gradient(45deg, #e74c3c, #c0392b);
+    border: none;
+    color: white;
+    font-weight: 600;
+    box-shadow: 0 5px 15px rgba(231, 76, 60, 0.3);
+    transition: all 0.3s ease;
+    cursor: pointer;
+    min-width: 150px;
+}
+
+.btn-hangup:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(231, 76, 60, 0.4);
+}
+
+.btn-hangup:active {
+    transform: translateY(0);
+}
+
+.status-section h3 {
+    color: #2c3e50;
+    margin-bottom: 20px;
+    font-size: 20px;
+    text-align: center;
+}
+
+.status-buttons {
+    display: flex;
+    gap: 15px;
+    justify-content: center;
+    margin-bottom: 25px;
+    flex-wrap: wrap;
+}
+
+.status-btn {
+    flex: 1;
+    min-width: 120px;
+    padding: 15px 20px;
+    border-radius: 10px;
+    font-size: 16px;
+    font-weight: 600;
+    border: none;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+}
+
+.status-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+}
+
+.status-btn:active {
+    transform: translateY(0);
+}
+
+.status-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.comment-section {
+    margin-top: 20px;
+}
+
+.comment-section label {
+    display: block;
+    margin-bottom: 10px;
+    font-weight: 600;
+    color: #2c3e50;
+    font-size: 16px;
+}
+
+.comment-section textarea {
+    width: 100%;
+    padding: 15px;
+    border: 2px solid #e9ecef;
+    border-radius: 10px;
+    font-size: 16px;
+    font-family: inherit;
+    resize: vertical;
+    min-height: 100px;
+    transition: border-color 0.3s ease;
+}
+
+.comment-section textarea:focus {
+    outline: none;
+    border-color: #3498db;
+    box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
+}
+
+.script-section h2 {
+    color: #2c3e50;
+    margin-bottom: 20px;
+    font-size: 24px;
+    border-bottom: 3px solid #e74c3c;
+    padding-bottom: 10px;
+}
+
+.script-content {
+    background: #f8f9fa;
+    border-radius: 10px;
+    padding: 20px;
+    border-left: 4px solid #e74c3c;
+    line-height: 1.6;
+    font-size: 16px;
+    color: #2c3e50;
+}
+
+.script-content h3 {
+    color: #e74c3c;
+    margin-top: 20px;
+    margin-bottom: 10px;
+}
+
+.script-content h3:first-child {
+    margin-top: 0;
+}
+
+.script-content ul {
+    margin: 10px 0;
+    padding-left: 20px;
+}
+
+.script-content li {
+    margin-bottom: 8px;
+}
+
+/* Убрали плавающий таймер — теперь он встроен в заголовок */
+
+/* Анимации */
+@keyframes pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+    100% { transform: scale(1); }
+}
+
+.timer-pulse {
+    animation: pulse 1s infinite;
+}
+
+/* Адаптивность */
+@media (max-width: 768px) {
+    .call-container {
+        flex-direction: column;
+        height: auto;
+        min-height: calc(100vh - 80px);
+    }
+    
+    .status-buttons {
+        flex-direction: column;
+    }
+    
+    .status-btn {
+        min-width: auto;
+    }
+    
+    .call-timer {
+        position: relative;
+        top: auto;
+        right: auto;
+        margin: 20px auto;
+        display: inline-block;
+    }
+}
+
+/* Состояния кнопок */
+.btn-hangup.calling {
+    background: linear-gradient(45deg, #95a5a6, #7f8c8d);
+    animation: pulse 1s infinite;
+}
+
+.status-btn.selected {
+    transform: scale(1.05);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.2);
+}
+
+/* Улучшенные стили для деталей лида */
+.lead-details .detail-item.status {
+    background: #e8f5e8;
+    border-radius: 8px;
+    padding: 15px;
+    margin: 10px 0;
+}
+
+.lead-details .detail-item.status .detail-value {
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.lead-details .detail-item.phone {
+    background: #e3f2fd;
+    border-radius: 8px;
+    padding: 15px;
+    margin: 10px 0;
+}
+
+.lead-details .detail-item.phone .detail-value {
+    font-family: 'Courier New', monospace;
+    font-size: 18px;
+    font-weight: 600;
+    color: #1976d2;
+}
+
+/* Глобальный лоадер */
+.loader-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(255, 255, 255, 0.95);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    z-index: 9999;
+    backdrop-filter: blur(8px);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.loader-overlay.show {
+    opacity: 1;
+}
+
+.loader-spinner {
+    width: 60px;
+    height: 60px;
+    border: 5px solid #f3f3f3;
+    border-top: 5px solid #667eea;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin-bottom: 20px;
+}
+
+.loader-text {
+    font-size: 20px;
+    color: #2c3e50;
+    font-weight: 600;
+    text-align: center;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
