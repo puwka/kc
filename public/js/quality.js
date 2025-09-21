@@ -12,13 +12,13 @@ async function init(){
   bindEvents();
   loadProjects();
   loadAnalytics();
+  loadQCRotationStats();
   loadReviews();
 }
 
 function setupUI(){
   document.getElementById('navUser').style.display='flex';
   document.getElementById('userName').textContent=currentUser.name;
-  document.getElementById('userRole').textContent=currentUser.role;
 }
 
 async function loadAnalytics(){
@@ -29,6 +29,38 @@ async function loadAnalytics(){
     const stats=await resp.json();
     renderAnalytics(stats);
   }catch(e){notify(e.message,'error')}
+}
+
+async function loadQCRotationStats(){
+  try{
+    const resp=await fetch('/api/quality/rotation/stats',{headers:{'Authorization':`Bearer ${localStorage.getItem('token')}`}});
+    if(!resp.ok){throw new Error('Ошибка загрузки статистики ротации')}
+    const stats=await resp.json();
+    renderQCRotationStats(stats);
+  }catch(e){
+    console.error('Error loading QC rotation stats:', e);
+    // Не показываем ошибку пользователю, так как это не критично
+  }
+}
+
+function renderQCRotationStats(stats){
+  const rotationInfo=document.getElementById('qcRotationInfo');
+  const currentReviewer=document.getElementById('currentReviewer');
+  const totalAssignments=document.getElementById('totalAssignments');
+  
+  if(!stats.success||!stats.quality_users||stats.quality_users.length===0){
+    rotationInfo.style.display='none';
+    return;
+  }
+  
+  // Находим текущего оператора
+  const currentUser=stats.quality_users.find(user=>user.is_current);
+  const reviewerName=currentUser?currentUser.name:'Неизвестно';
+  
+  currentReviewer.textContent=reviewerName;
+  totalAssignments.textContent=`${stats.total_assignments} назначений`;
+  
+  rotationInfo.style.display='block';
 }
 
 function renderAnalytics(s){
@@ -120,40 +152,78 @@ async function loadReviews(){
 }
 
 function renderReviews(rows){
-  const tbody=document.getElementById('reviewsTableBody');
-  tbody.innerHTML='';
+  const container=document.getElementById('reviewsTableBody');
+  container.innerHTML='';
   // KPI блок
   renderKPI(rows);
   if(!rows||rows.length===0){
-    tbody.innerHTML='<tr><td colspan="6" style="text-align:center;color:#666">Заявок нет</td></tr>';
+    container.innerHTML=`
+      <div class="review-empty">
+        <div class="review-empty-icon">📋</div>
+        <div>Заявок на проверку нет</div>
+        <div style="font-size: 14px; margin-top: 8px; opacity: 0.7;">Все лиды обработаны</div>
+      </div>
+    `;
     return;
   }
   rows.forEach(r=>{
-    const tr=document.createElement('tr');
     const lead=r.leads||{};
     const project = lead.project || 'Не указан';
     const projectPrice = projects.find(p => p.name === project)?.success_price || 3.00;
     
-    tr.innerHTML=`
-      <td>${r.id.slice(0,8)}...</td>
-      <td>${lead.name||'-'}</td>
-      <td>${lead.phone||'-'}</td>
-      <td>${project}</td>
-      <td>${projectPrice}₽</td>
-      <td><span class="status-badge ${r.status}">${r.status}</span></td>
-      <td>${new Date(r.created_at).toLocaleString('ru-RU')}</td>
-      <td>
-        <div class="action-buttons">
-          <button class="btn btn-outline btn-review" data-id="${r.id}">Проверить</button>
-          <button class="btn-approve" data-id="${r.id}">Одобрить</button>
-          <button class="btn-reject" data-id="${r.id}">Отклонить</button>
+    // Переводим статусы
+    const statusText = {
+      'pending': 'В ожидании',
+      'approved': 'Одобрено',
+      'rejected': 'Отклонено'
+    }[r.status] || r.status;
+    
+    const card=document.createElement('div');
+    card.className='review-card';
+    card.innerHTML=`
+      <div class="review-header">
+        <div class="review-lead-info">
+          <div class="review-lead-name">${lead.name||'Не указано'}</div>
+          <div class="review-phone">${lead.phone||'Телефон не указан'}</div>
         </div>
-      </td>`;
-    tbody.appendChild(tr);
+        <div class="review-status ${r.status}">${statusText}</div>
+      </div>
+      
+      <div class="review-details">
+        <div class="review-detail">
+          <div class="review-detail-label">Проект</div>
+          <div class="review-project">${project}</div>
+        </div>
+        <div class="review-detail">
+          <div class="review-detail-label">Стоимость</div>
+          <div class="review-cost">${projectPrice}₽</div>
+        </div>
+      </div>
+      
+      <div class="review-created">
+        Создано: ${new Date(r.created_at).toLocaleString('ru-RU', {
+          day: '2-digit',
+          month: '2-digit', 
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit'
+        })}
+      </div>
+      
+      <div class="review-actions">
+        <a href="/quality-review.html?id=${r.id}" class="review-action-btn check">
+          🔍 Проверить
+        </a>
+        <button onclick="approve('${r.id}')" class="review-action-btn approve">
+          ✅ Одобрить
+        </button>
+        <button onclick="reject('${r.id}')" class="review-action-btn reject">
+          ❌ Отклонить
+        </button>
+      </div>
+    `;
+    container.appendChild(card);
   });
-  tbody.querySelectorAll('.btn-review').forEach(b=>b.addEventListener('click',()=>openReview(b.dataset.id)));
-  tbody.querySelectorAll('.btn-approve').forEach(b=>b.addEventListener('click',()=>approve(b.dataset.id)));
-  tbody.querySelectorAll('.btn-reject').forEach(b=>b.addEventListener('click',()=>reject(b.dataset.id)));
 }
 
 function openReview(id){
@@ -165,14 +235,14 @@ function filterRows(query){
   const statusFilter = document.getElementById('statusFilter').value;
   const projectFilter = document.getElementById('projectFilter').value;
   
-  const rows=[...document.querySelectorAll('#reviewsTableBody tr')];
-  rows.forEach(tr=>{
-    const text=tr.innerText.toLowerCase();
-    const statusMatch = !statusFilter || tr.querySelector('.status-badge')?.textContent === statusFilter;
+  const cards=[...document.querySelectorAll('#reviewsTableBody .review-card')];
+  cards.forEach(card=>{
+    const text=card.innerText.toLowerCase();
+    const statusMatch = !statusFilter || card.querySelector('.review-status')?.textContent.toLowerCase() === statusFilter.toLowerCase();
     const projectMatch = !projectFilter || text.includes(projectFilter.toLowerCase());
     const searchMatch = !query || text.includes(query);
     
-    tr.style.display=(statusMatch && projectMatch && searchMatch)?'':'none';
+    card.style.display=(statusMatch && projectMatch && searchMatch)?'':'none';
   });
 }
 

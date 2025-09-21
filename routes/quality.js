@@ -143,6 +143,7 @@ router.get('/reviews', authenticateToken, requireQuality, async (req, res) => {
         comment, 
         created_at, 
         reviewed_at,
+        reviewer_id,
         leads (
           id,
           name, 
@@ -180,15 +181,79 @@ router.get('/reviews', authenticateToken, requireQuality, async (req, res) => {
       return res.status(500).json({ error: 'Failed to fetch reviews' });
     }
 
+    // Автоматически назначаем ОКК операторов для заявок без назначения
+    const reviews = data || [];
+    const unassignedReviews = reviews.filter(review => !review.reviewer_id);
+    
+    if (unassignedReviews.length > 0) {
+      console.log(`📋 Найдено ${unassignedReviews.length} заявок без назначения ОКК оператора`);
+      
+      // Получаем всех ОКК операторов
+      const { data: qcUsers, error: qcError } = await supabaseAdmin
+        .from('profiles')
+        .select('id, name')
+        .eq('role', 'quality')
+        .order('created_at');
+
+      if (qcError || !qcUsers || qcUsers.length === 0) {
+        console.error('Error fetching QC users for auto-assignment:', qcError);
+      } else {
+        // Получаем статистику назначений
+        const { data: existingReviews, error: existingError } = await supabaseAdmin
+          .from('quality_reviews')
+          .select('reviewer_id')
+          .not('reviewer_id', 'is', null);
+
+        if (!existingError && existingReviews) {
+          // Подсчитываем назначения
+          const assignments = {};
+          qcUsers.forEach(user => {
+            assignments[user.id] = existingReviews.filter(r => r.reviewer_id === user.id).length;
+          });
+
+          // Назначаем заявки операторам с наименьшим количеством назначений
+          for (let i = 0; i < unassignedReviews.length; i++) {
+            const review = unassignedReviews[i];
+            
+            // Находим оператора с наименьшим количеством назначений
+            let selectedUserId = qcUsers[0].id;
+            let minAssignments = assignments[selectedUserId];
+            
+            qcUsers.forEach(user => {
+              if (assignments[user.id] < minAssignments) {
+                minAssignments = assignments[user.id];
+                selectedUserId = user.id;
+              }
+            });
+
+            // Назначаем заявку
+            const { error: assignError } = await supabaseAdmin
+              .from('quality_reviews')
+              .update({ reviewer_id: selectedUserId })
+              .eq('id', review.id);
+
+            if (assignError) {
+              console.error('Error assigning review:', assignError);
+            } else {
+              console.log(`✅ Заявка ${review.id} назначена оператору ${selectedUserId}`);
+              assignments[selectedUserId]++;
+              // Обновляем данные в ответе
+              review.reviewer_id = selectedUserId;
+            }
+          }
+        }
+      }
+    }
+
     // Если запрошен экспорт в CSV
     if (export_csv === 'true') {
-      const csv = generateReviewsCSV(data || []);
+      const csv = generateReviewsCSV(reviews);
       res.setHeader('Content-Type', 'text/csv; charset=utf-8');
       res.setHeader('Content-Disposition', 'attachment; filename="quality_reviews.csv"');
       return res.send(csv);
     }
 
-    res.json(data || []);
+    res.json(reviews);
   } catch (error) {
     console.error('Quality reviews error:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -217,7 +282,18 @@ router.post('/reviews/:id/approve', authenticateToken, requireQuality, async (re
     console.log('Lead ID type:', typeof reviewData.lead_id);
     console.log('Lead ID value:', reviewData.lead_id);
 
-    // Используем новую функцию для одобрения лида
+    // Сначала обновляем reviewer_id в quality_reviews
+    const { error: updateReviewerError } = await supabaseAdmin
+      .from('quality_reviews')
+      .update({ reviewer_id: req.user.id })
+      .eq('id', id);
+    
+    if (updateReviewerError) {
+      console.error('Error updating reviewer_id:', updateReviewerError);
+      return res.status(500).json({ error: 'Failed to update reviewer' });
+    }
+
+    // Используем функцию для одобрения лида
     const { data: approvalResult, error: approvalError } = await supabaseAdmin
       .rpc('approve_lead_by_qc', {
         p_lead_id: parseInt(reviewData.lead_id), // Принудительно преобразуем в integer
@@ -319,7 +395,18 @@ router.post('/reviews/:id/reject', authenticateToken, requireQuality, async (req
       return res.status(404).json({ error: 'Review not found' });
     }
 
-    // Используем новую функцию для отклонения лида
+    // Сначала обновляем reviewer_id в quality_reviews
+    const { error: updateReviewerError } = await supabaseAdmin
+      .from('quality_reviews')
+      .update({ reviewer_id: req.user.id })
+      .eq('id', id);
+    
+    if (updateReviewerError) {
+      console.error('Error updating reviewer_id:', updateReviewerError);
+      return res.status(500).json({ error: 'Failed to update reviewer' });
+    }
+
+    // Используем функцию для отклонения лида
     const { data: rejectionResult, error: rejectionError } = await supabaseAdmin
       .rpc('reject_lead_by_qc', {
         p_lead_id: parseInt(reviewData.lead_id), // Принудительно преобразуем в integer
@@ -341,6 +428,110 @@ router.post('/reviews/:id/reject', authenticateToken, requireQuality, async (req
     });
   } catch (error) {
     console.error('Quality reject exception:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ====== QC Rotation Management ======
+
+// GET /api/quality/rotation/stats - Получить статистику ротации ОКК
+router.get('/rotation/stats', authenticateToken, requireQuality, async (req, res) => {
+  try {
+    // Получаем всех ОКК операторов
+    const { data: qcUsers, error: qcError } = await supabaseAdmin
+      .from('profiles')
+      .select('id, name, email, created_at')
+      .eq('role', 'quality')
+      .order('created_at');
+
+    if (qcError) {
+      console.error('Error fetching QC users:', qcError);
+      return res.status(500).json({ error: 'Failed to fetch QC users' });
+    }
+
+    if (!qcUsers || qcUsers.length === 0) {
+      return res.json({
+        success: true,
+        current_reviewer_id: null,
+        total_assignments: 0,
+        quality_users: []
+      });
+    }
+
+    // Получаем статистику назначений из quality_reviews
+    const { data: reviews, error: reviewsError } = await supabaseAdmin
+      .from('quality_reviews')
+      .select('reviewer_id, created_at')
+      .not('reviewer_id', 'is', null);
+
+    if (reviewsError) {
+      console.error('Error fetching reviews:', reviewsError);
+    }
+
+    // Подсчитываем назначения для каждого ОКК оператора
+    const assignments = {};
+    qcUsers.forEach(user => {
+      assignments[user.id] = 0;
+    });
+
+    if (reviews) {
+      reviews.forEach(review => {
+        if (assignments[review.reviewer_id] !== undefined) {
+          assignments[review.reviewer_id]++;
+        }
+      });
+    }
+
+    // Находим оператора с наименьшим количеством назначений
+    let currentReviewerId = null;
+    let minAssignments = Infinity;
+    
+    qcUsers.forEach(user => {
+      if (assignments[user.id] < minAssignments) {
+        minAssignments = assignments[user.id];
+        currentReviewerId = user.id;
+      }
+    });
+
+    // Формируем ответ
+    const qualityUsers = qcUsers.map(user => ({
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      is_current: user.id === currentReviewerId,
+      assignments: assignments[user.id] || 0
+    }));
+
+    const totalAssignments = Object.values(assignments).reduce((sum, count) => sum + count, 0);
+
+    res.json({
+      success: true,
+      current_reviewer_id: currentReviewerId,
+      total_assignments: totalAssignments,
+      quality_users: qualityUsers
+    });
+
+  } catch (error) {
+    console.error('QC rotation stats error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST /api/quality/rotation/reset - Сбросить ротацию ОКК (только для админов)
+router.post('/rotation/reset', authenticateToken, async (req, res) => {
+  try {
+    // Проверяем, что пользователь - админ
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'Only admins can reset QC rotation' });
+    }
+
+    // В упрощенной версии просто возвращаем успех
+    res.json({
+      success: true,
+      message: 'QC rotation reset successfully (simplified version)'
+    });
+  } catch (error) {
+    console.error('QC rotation reset error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

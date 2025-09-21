@@ -14,8 +14,6 @@
         <h1 class="nav-title">CRM Колл-центра — Отдел качества</h1>
         <div class="nav-user" id="navUser" style="display: none;">
           <a href="/profile.html" id="userName" class="user-name-link"></a>
-          <span id="userRole" class="user-role"></span>
-          <a href="/" class="btn btn-outline">Дашборд</a>
           <button id="logoutBtn" class="btn btn-secondary">Выйти</button>
         </div>
       </div>
@@ -28,8 +26,18 @@
 
         <div class="section-header">
           <h2>Очередь проверок</h2>
+          <div class="qc-rotation-info" id="qcRotationInfo" style="display: none;">
+            <div class="rotation-stats">
+              <span class="rotation-label">Ротация ОКК:</span>
+              <span class="current-reviewer" id="currentReviewer">Загрузка...</span>
+              <span class="rotation-separator">•</span>
+              <span class="total-assignments" id="totalAssignments">0 назначений</span>
+            </div>
+          </div>
           <div class="filters">
-            <input type="text" id="searchInput" placeholder="Поиск: имя/телефон/ID" class="search-input" />
+            <div class="search-container">
+              <input type="text" id="searchInput" placeholder="Поиск: имя/телефон/ID" class="search-input" />
+            </div>
             <select id="statusFilter" class="period-select">
               <option value="pending" selected>В ожидании</option>
               <option value="approved">Одобренные</option>
@@ -38,30 +46,16 @@
             <select id="projectFilter" class="period-select">
               <option value="">Все проекты</option>
             </select>
-            <button id="refreshBtn" class="btn btn-outline">Обновить</button>
+            <button id="refreshBtn" class="btn btn-outline">🔄 Обновить</button>
           </div>
         </div>
 
         <div class="kpi-row" id="kpiRow" aria-hidden="true"></div>
 
-        <div class="reviews-table-container">
-          <table class="reviews-table">
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>Лид</th>
-                <th>Телефон</th>
-                <th>Проект</th>
-                <th>Стоимость</th>
-                <th>Статус</th>
-                <th>Создано</th>
-                <th>Действия</th>
-              </tr>
-            </thead>
-            <tbody id="reviewsTableBody">
-              <!-- Данные -->
-            </tbody>
-          </table>
+        <div class="reviews-container">
+          <div class="reviews-grid" id="reviewsTableBody">
+            <!-- Данные будут загружены через JavaScript -->
+          </div>
         </div>
       </div>
     </main>
