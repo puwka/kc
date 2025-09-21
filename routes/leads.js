@@ -93,6 +93,14 @@ router.put('/:id', authenticateToken, async (req, res) => {
     try {
         const { id } = req.params;
         const { name, phone, status, assigned_to, comment } = req.body;
+        
+        console.log('🔄 Обновление лида:', {
+            id,
+            user: req.user,
+            body: req.body,
+            userRole: req.user?.role,
+            comment: req.body?.comment
+        });
 
         // Проверяем, что лид существует
         const { data: existingLead, error: fetchError } = await supabaseAdmin
@@ -111,8 +119,40 @@ router.put('/:id', authenticateToken, async (req, res) => {
         }
         
         // Quality и admin могут обновлять комментарии любых лидов
-        if (req.user.role === 'quality' && !comment) {
+        if (req.user.role === 'quality' && comment === undefined) {
             return res.status(403).json({ error: 'Quality role can only update comments' });
+        }
+        
+        // Если это quality и передается только comment, разрешаем обновление
+        if (req.user.role === 'quality' && comment !== undefined) {
+            console.log('🔧 Quality role updating comment for lead:', id);
+            console.log('📝 New comment:', comment);
+            
+            // Quality может обновлять только комментарии
+            const updateData = { comment };
+            
+            const { data: lead, error } = await supabaseAdmin
+                .from('leads')
+                .update(updateData)
+                .eq('id', id)
+                .select(`
+                    *,
+                    assigned_user:profiles!leads_assigned_to_fkey(name, email)
+                `)
+                .single();
+
+            if (error) {
+                console.error('❌ Error updating lead comment:', error);
+                return res.status(500).json({ error: 'Failed to update lead comment' });
+            }
+
+            console.log('✅ Lead comment updated successfully:', {
+                id: lead.id,
+                comment: lead.comment,
+                updated_at: lead.updated_at
+            });
+
+            return res.json(lead);
         }
 
         // Валидация статуса

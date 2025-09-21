@@ -41,32 +41,33 @@
         </div>
       </div>
 
-      <div class="status-section">
-        <h3>Решение ОКК</h3>
-        <div class="status-buttons">
-          <button id="approveBtn" class="btn btn-success status-btn">✅ Одобрить</button>
-          <button id="rejectBtn" class="btn btn-danger status-btn">❌ Отклонить</button>
-        </div>
-        <div class="comment-section">
-          <label for="commentText">Комментарий ОКК (необязательно):</label>
-          <textarea id="commentText" placeholder="Добавьте примечание..." rows="3"></textarea>
-        </div>
+      <div class="comment-section">
+        <label for="commentText">Комментарий ОКК (необязательно):</label>
+        <textarea id="commentText" placeholder="Добавьте примечание..." rows="3"></textarea>
       </div>
     </div>
 
     <div class="call-right-panel">
       <div class="script-section">
-        <div class="section-header">
-          <h2>Скрипт звонка</h2>
-        </div>
-        <div id="scriptContent" class="script-content"></div>
-
-        <div class="audio-section" style="margin-top:16px;">
+        <div class="audio-section" style="margin-bottom:20px;">
           <h3>Запись разговора</h3>
           <audio id="callAudio" controls style="width:100%">
             <source id="audioSource" src="" type="audio/mpeg">
             Ваш браузер не поддерживает аудио.
           </audio>
+        </div>
+
+        <div class="section-header">
+          <h2>Скрипт звонка</h2>
+        </div>
+        <div id="scriptContent" class="script-content"></div>
+
+        <div class="status-section" style="margin-top:20px;">
+          <h3>Решение ОКК</h3>
+          <div class="status-buttons">
+            <button id="approveBtn" class="btn btn-success status-btn">✅ Одобрить</button>
+            <button id="rejectBtn" class="btn btn-danger status-btn">❌ Отклонить</button>
+          </div>
         </div>
       </div>
     </div>

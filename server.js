@@ -31,7 +31,7 @@ app.use('/api/operators', operatorsRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/quality', qualityRoutes);
 app.use('/api/balance', balanceRoutes);
-app.use('/api/scripts', scriptsRoutes);
+app.use('/api/scripts', authenticateToken, scriptsRoutes);
 
 // Serve static files
 app.get('/', (req, res) => {

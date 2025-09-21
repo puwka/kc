@@ -12,6 +12,7 @@ const authenticateToken = async (req, res, next) => {
 
     try {
         const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback_secret_key');
+        console.log('🔐 JWT decoded:', { userId: decoded.userId, email: decoded.email });
         
         // Получаем роль пользователя из профиля
         const { data: profile, error: profileError } = await supabaseAdmin
@@ -21,9 +22,12 @@ const authenticateToken = async (req, res, next) => {
             .single();
 
         if (profileError) {
-            console.error('Profile fetch error in middleware:', profileError);
+            console.error('❌ Profile fetch error in middleware:', profileError);
+            console.error('❌ User ID:', decoded.userId);
             return res.status(401).json({ error: 'User profile not found' });
         }
+
+        console.log('✅ User profile found:', { id: profile.id, email: profile.email, role: profile.role });
 
         req.user = {
             id: decoded.userId,

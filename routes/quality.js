@@ -62,6 +62,66 @@ function generateReviewsCSV(reviews) {
   return '\uFEFF' + csvContent; // BOM для корректного отображения кириллицы
 }
 
+// PUT /api/quality/reviews/:id/operator-comment - Обновить комментарий оператора
+router.put('/reviews/:id/operator-comment', authenticateToken, requireQuality, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { comment } = req.body;
+    
+    console.log('🔧 Обновление комментария оператора:', {
+      reviewId: id,
+      comment: comment,
+      user: req.user
+    });
+    
+    if (!comment) {
+      return res.status(400).json({ error: 'Comment is required' });
+    }
+    
+    // Получаем lead_id из review
+    const { data: review, error: reviewError } = await supabaseAdmin
+      .from('quality_reviews')
+      .select('lead_id')
+      .eq('id', id)
+      .single();
+      
+    if (reviewError || !review) {
+      console.error('❌ Review not found:', reviewError);
+      return res.status(404).json({ error: 'Review not found' });
+    }
+    
+    console.log('📋 Found review, lead_id:', review.lead_id);
+    
+    // Обновляем комментарий в таблице leads
+    const { data: updatedLead, error: updateError } = await supabaseAdmin
+      .from('leads')
+      .update({ comment: comment })
+      .eq('id', review.lead_id)
+      .select('id, comment, name, phone')
+      .single();
+      
+    if (updateError) {
+      console.error('❌ Error updating lead comment:', updateError);
+      return res.status(500).json({ error: 'Failed to update lead comment' });
+    }
+    
+    console.log('✅ Lead comment updated successfully:', {
+      id: updatedLead.id,
+      comment: updatedLead.comment
+    });
+    
+    res.json({ 
+      success: true, 
+      lead: updatedLead,
+      message: 'Operator comment updated successfully' 
+    });
+    
+  } catch (error) {
+    console.error('❌ Error updating operator comment:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // GET /api/quality/reviews?status=pending
 router.get('/reviews', authenticateToken, requireQuality, async (req, res) => {
   try {
@@ -173,8 +233,59 @@ router.post('/reviews/:id/approve', authenticateToken, requireQuality, async (re
       return res.status(400).json({ error: approvalResult.error });
     }
 
-    // Отправляем уведомление в Telegram
-    const leadInfo = `✅ Лид одобрен ОКК\nID: ${reviewData.lead_id}\nСумма: ${approvalResult.amount}₽\nПроект: ${approvalResult.project}\nОператор: ${approvalResult.operator_id}`;
+    // Получаем дополнительную информацию для Telegram
+    const { data: leadDetails, error: leadError } = await supabaseAdmin
+      .from('leads')
+      .select(`
+        id,
+        name,
+        phone,
+        comment,
+        qc_comment,
+        project,
+        assigned_user:profiles!leads_assigned_to_fkey(name, email)
+      `)
+      .eq('id', reviewData.lead_id)
+      .single();
+
+    if (leadError) {
+      console.error('Error fetching lead details for Telegram:', leadError);
+    }
+
+    // Получаем информацию о том, кто проверил (ОКК)
+    const { data: qcUser, error: qcError } = await supabaseAdmin
+      .from('profiles')
+      .select('name, email')
+      .eq('id', req.user.id)
+      .single();
+
+    if (qcError) {
+      console.error('Error fetching QC user details for Telegram:', qcError);
+    }
+
+    // Формируем сообщение для Telegram
+    const operatorName = leadDetails?.assigned_user?.name || 'Не указан';
+    const qcName = qcUser?.name || 'Не указан';
+    const operatorComment = leadDetails?.comment || 'Комментарий не добавлен';
+    const qcComment = leadDetails?.qc_comment || 'Комментарий не добавлен';
+    
+    const leadInfo = `✅ <b>Лид одобрен ОКК</b>
+
+📋 <b>Информация о лиде:</b>
+• ID: ${reviewData.lead_id}
+• Имя: ${leadDetails?.name || 'Не указано'}
+• Телефон: ${leadDetails?.phone || 'Не указан'}
+• Проект: ${approvalResult.project}
+
+👤 <b>Оператор:</b> ${operatorName}
+🔍 <b>Проверил ОКК:</b> ${qcName}
+
+💬 <b>Комментарий оператора:</b>
+${operatorComment}
+
+💬 <b>Комментарий ОКК:</b>
+${qcComment}`;
+
     await sendToTelegram(leadInfo);
 
     res.json({ 

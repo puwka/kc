@@ -34,6 +34,110 @@ router.get('/projects', authenticateToken, async (req, res) => {
   }
 });
 
+// GET /api/scripts/by-project/:projectName - получить скрипты по названию проекта
+router.get('/by-project/:projectName', authenticateToken, async (req, res) => {
+  try {
+    const { projectName } = req.params;
+    
+    console.log('📋 Запрос скриптов для проекта:', {
+      original: projectName,
+      decoded: decodeURIComponent(projectName),
+      user: req.user
+    });
+    
+    // Сначала найдем проект по названию
+    const decodedProjectName = decodeURIComponent(projectName);
+    
+    console.log('🔍 Поиск проекта в БД:', {
+      table: 'projects',
+      name: decodedProjectName,
+      is_active: true
+    });
+    
+    const { data: project, error: projectError } = await supabaseAdmin
+      .from('projects')
+      .select('id, name')
+      .eq('name', decodedProjectName)
+      .eq('is_active', true)
+      .single();
+      
+    if (projectError) {
+      console.error('❌ Ошибка поиска проекта:', {
+        original: projectName,
+        decoded: decodedProjectName,
+        error: projectError,
+        message: projectError.message,
+        details: projectError.details,
+        hint: projectError.hint
+      });
+      
+      // Если таблица не существует, возвращаем пустой массив
+      if (projectError.message && projectError.message.includes('relation "projects" does not exist')) {
+        console.log('⚠️ Таблица projects не существует, возвращаем пустой массив');
+        return res.json([]);
+      }
+      
+      return res.status(500).json({ 
+        error: 'Database error while searching for project',
+        details: projectError.message 
+      });
+    }
+    
+    if (!project) {
+      console.log('❌ Проект не найден:', {
+        original: projectName,
+        decoded: decodedProjectName
+      });
+      return res.json([]);
+    }
+    
+    console.log('✅ Найден проект:', project);
+    
+    // Получаем скрипты для этого проекта
+    console.log('🔍 Поиск скриптов в БД:', {
+      table: 'call_scripts',
+      project_id: project.id,
+      is_active: true
+    });
+    
+    const { data: scripts, error: scriptsError } = await supabaseAdmin
+      .from('call_scripts')
+      .select('id, title, content, is_active, created_at')
+      .eq('project_id', project.id)
+      .eq('is_active', true)
+      .order('created_at', { ascending: false });
+      
+    if (scriptsError) {
+      console.error('❌ Ошибка получения скриптов:', {
+        project_id: project.id,
+        error: scriptsError,
+        message: scriptsError.message,
+        details: scriptsError.details,
+        hint: scriptsError.hint
+      });
+      
+      // Если таблица не существует, возвращаем пустой массив
+      if (scriptsError.message && (scriptsError.message.includes('relation "scripts" does not exist') || 
+                                   scriptsError.message.includes('Could not find the table'))) {
+        console.log('⚠️ Таблица call_scripts не найдена, возвращаем пустой массив');
+        return res.json([]);
+      }
+      
+      return res.status(500).json({ 
+        error: 'Database error while fetching scripts',
+        details: scriptsError.message 
+      });
+    }
+    
+    console.log('✅ Найдено скриптов:', scripts?.length || 0);
+    
+    res.json(scripts || []);
+  } catch (error) {
+    console.error('❌ Ошибка получения скриптов по проекту:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // GET /api/scripts/scripts - получить список скриптов
 router.get('/scripts', authenticateToken, async (req, res) => {
   try {
