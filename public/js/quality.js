@@ -1,70 +1,92 @@
 let currentUser=null;
-let projects = [];
-let reviews = [];
-let localLocks = new Map(); // Локальный кэш блокировок для защиты от конфликтов
 
-// Функция для обновления локального кэша блокировок
-function updateLocalLocks(serverLocks) {
-  // Очищаем локальный кэш от старых записей (старше 10 секунд)
-  const now = Date.now();
-  for (const [reviewId, lock] of localLocks.entries()) {
-    if (now - lock.timestamp > 10000) { // 10 секунд
-      localLocks.delete(reviewId);
-    }
-  }
+// ====== Утилиты ======
+
+function notify(message,type='info'){
+  const box=document.getElementById('notifications');
+  const el=document.createElement('div');
+  el.className=`notification ${type}`;
+  el.textContent=message;
+  box.appendChild(el);
+  setTimeout(()=>el.remove(),3000);
+}
+
+// ====== Система очереди ОКК ======
+
+// Получить следующую заявку
+async function getNextReview() {
+  const btn = document.getElementById('getNextReviewBtn');
   
-  // Обновляем локальный кэш на основе серверных данных
-  for (const review of serverLocks) {
-    if (review.is_locked && review.locked_by) {
-      localLocks.set(review.id, {
-        locked_by: review.locked_by,
-        locked_by_name: review.locked_by_name,
-        locked_at: review.locked_at,
-        timestamp: now
-      });
-    } else if (!review.is_locked) {
-      // Если сервер говорит, что заявка не заблокирована, удаляем из локального кэша
-      localLocks.delete(review.id);
+  try {
+    btn.classList.add('loading');
+    btn.disabled = true;
+    btn.textContent = '⏳ Получение заявки...';
+
+    const response = await fetch('/api/quality/next-review', {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('token')}`
+      }
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      notify(data.error || 'Ошибка получения заявки', 'error');
+      return;
     }
+
+    if (!data.success) {
+      notify(data.message || 'Нет доступных заявок для проверки', 'warning');
+      return;
+    }
+
+    // Обновляем статистику очереди
+    loadQueueStats();
+    
+    // Переходим на страницу проверки заявки
+    window.location.href = `/quality-review.html?id=${data.review.id}`;
+    
+  } catch (error) {
+    console.error('Ошибка получения заявки:', error);
+    notify('Ошибка при получении заявки', 'error');
+  } finally {
+    btn.classList.remove('loading');
+    btn.disabled = false;
+    btn.textContent = '📋 Получить заявку';
   }
 }
 
-// Функция для получения актуального статуса блокировки
-function getLockStatus(review) {
-  const localLock = localLocks.get(review.id);
-  const serverLock = review.is_locked;
-  
-  // Если есть локальная блокировка и она очень свежая (менее 5 секунд), используем её
-  if (localLock && (Date.now() - localLock.timestamp < 5000)) {
-    return {
-      is_locked: true,
-      locked_by: localLock.locked_by,
-      locked_by_name: localLock.locked_by_name,
-      locked_at: localLock.locked_at
-    };
+
+// Освободить оператора
+async function releaseOperator() {
+  try {
+    const response = await fetch('/api/quality/release-operator', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('token')}`
+      }
+    });
+
+    if (!response.ok) {
+      const data = await response.json();
+      notify(data.error || 'Ошибка освобождения оператора', 'error');
+      return;
+    }
+
+    notify('Оператор освобожден', 'success');
+
+  } catch (error) {
+    console.error('Ошибка освобождения оператора:', error);
+    notify('Ошибка при освобождении оператора', 'error');
   }
-  
-  // Иначе используем серверные данные
-  return {
-    is_locked: serverLock || false,
-    locked_by: review.locked_by || null,
-    locked_by_name: review.locked_by_name || null,
-    locked_at: review.locked_at || null
-  };
 }
 
-// Функция для очистки старых локальных блокировок
-function cleanupLocalLocks() {
-  const now = Date.now();
-  const tenSecondsAgo = now - 10000; // 10 секунд
-  
-  for (const [reviewId, lock] of localLocks.entries()) {
-    if (lock.timestamp < tenSecondsAgo) {
-      localLocks.delete(reviewId);
-      console.log(`🧹 Очищена старая локальная блокировка заявки ${reviewId}`);
-    }
-  }
-}
+// Делаем функции доступными глобально
+window.getNextReview = getNextReview;
+window.releaseOperator = releaseOperator;
+window.notify = notify;
+
 
 document.addEventListener('DOMContentLoaded',()=>{init()});
 
@@ -79,56 +101,51 @@ async function init(){
   await loadMe(token);
   setupUI();
   bindEvents();
-  loadProjects();
   loadAnalytics();
+  loadQueueStats();
   
-  // Очищаем локальный кэш при инициализации
-  localLocks.clear();
-  console.log('🧹 Локальный кэш блокировок очищен при инициализации');
-  
-  loadReviews();
   setupStickyHeader();
-  setupSSE();
   
-// Автоматическое обновление списка заявок каждые 3 секунды
-setInterval(() => {
-  loadReviews();
-}, 3000);
-
-// Дополнительное обновление каждые 1 секунду для компенсации возможных проблем с SSE
-let sseWorking = false;
-let lastSSEUpdate = Date.now();
-
-setInterval(() => {
-  // Проверяем, есть ли активное SSE соединение
-  if (!window.sseConnection || window.sseConnection.readyState !== EventSource.OPEN) {
-    if (sseWorking) {
-      console.log('⚠️ SSE соединение потеряно, переключаемся на fallback');
-      sseWorking = false;
-    }
-    loadReviews();
-  } else {
-    sseWorking = true;
-  }
-}, 1000);
 
 // Автоматическое обновление аналитики каждые 5 минут
 setInterval(() => {
   loadAnalytics();
 }, 5 * 60 * 1000);
 
+// Автоматическое обновление статистики очереди каждые 30 секунд
+setInterval(() => {
+  loadQueueStats();
+}, 30 * 1000);
+
 // Обновление при возврате на страницу (когда пользователь переключается между вкладками)
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden) {
-    loadReviews();
     loadAnalytics();
+    loadQueueStats();
   }
 });
 
 // Обновление при фокусе на окне
 window.addEventListener('focus', () => {
-  loadReviews();
   loadAnalytics();
+  loadQueueStats();
+});
+
+// Удаление оператора из очереди при закрытии страницы
+window.addEventListener('beforeunload', async () => {
+  try {
+    // Отправляем запрос на удаление из очереди (без ожидания ответа)
+    fetch('/api/quality/remove-operator', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        'Content-Type': 'application/json'
+      },
+      keepalive: true // Позволяет запросу выполниться даже при закрытии страницы
+    });
+  } catch (error) {
+    console.error('❌ Ошибка при удалении из очереди при закрытии:', error);
+  }
 });
 }
 
@@ -171,9 +188,26 @@ function setupUserMenu() {
     // Обработчик для кнопки выхода
     const logoutBtn = document.getElementById('logoutBtn');
     if (logoutBtn) {
-      logoutBtn.onclick = function(e) {
+      logoutBtn.onclick = async function(e) {
         e.preventDefault();
         e.stopPropagation();
+        
+        try {
+          // Удаляем оператора из очереди ОКК
+          console.log('🗑️ Удаляем оператора из очереди ОКК...');
+          await fetch('/api/quality/remove-operator', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${localStorage.getItem('token')}`,
+              'Content-Type': 'application/json'
+            }
+          });
+          console.log('✅ Оператор удален из очереди ОКК');
+        } catch (error) {
+          console.error('❌ Ошибка при удалении из очереди:', error);
+          // Продолжаем выход даже если не удалось удалить из очереди
+        }
+        
         localStorage.clear();
         window.location.href = '/login.html';
       };
@@ -201,99 +235,79 @@ async function loadAnalytics(){
   }catch(e){notify(e.message,'error')}
 }
 
-// Функции для блокировки заявок
-async function lockReview(reviewId) {
-  try {
-    const resp = await fetch(`/api/quality/reviews/${reviewId}/lock`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${localStorage.getItem('token')}`,
-        'Content-Type': 'application/json'
-      }
-    });
-    
-    const result = await resp.json();
-    
-    if (!resp.ok) {
-      if (resp.status === 409) {
-        notify(`❌ Заявка уже заблокирована оператором: ${result.locked_by_name}`, 'warning');
-      } else if (resp.status === 404) {
-        notify('❌ Заявка не найдена', 'error');
-      } else if (resp.status === 403) {
-        notify('❌ Недостаточно прав для блокировки заявки', 'error');
-      } else {
-        notify(`❌ Ошибка блокировки: ${result.error || 'Неизвестная ошибка'}`, 'error');
-      }
-      return;
+// Загрузка статистики очереди
+async function loadQueueStats(){
+  try{
+    console.log('🔄 Загружаем статистику очереди...');
+    const resp=await fetch('/api/quality/queue-stats',{headers:{'Authorization':`Bearer ${localStorage.getItem('token')}`}});
+    if(!resp.ok){
+      console.error('❌ Ошибка HTTP:', resp.status, resp.statusText);
+      throw new Error('Ошибка загрузки статистики очереди')
     }
-    
-    notify('✅ Заявка заблокирована', 'success');
-    
-    // Обновляем локальный кэш блокировок
-    localLocks.set(reviewId, {
-      locked_by: currentUser.id,
-      locked_by_name: currentUser.name,
-      locked_at: new Date().toISOString(),
-      timestamp: Date.now()
-    });
-    
-    // Мгновенно скрываем заявку у других операторов
-    hideReviewFromOthers(reviewId);
-    
-    // Принудительное обновление для синхронизации с другими пользователями
-    setTimeout(() => {
-      loadReviews();
-      loadAnalytics();
-    }, 500);
-  } catch (e) {
-    console.error('Error locking review:', e);
-    notify(`❌ Ошибка блокировки: ${e.message}`, 'error');
+    const stats=await resp.json();
+    console.log('📊 Получена статистика очереди:', stats);
+    console.log('🔍 Детали статистики:');
+    console.log('  - total_pending:', stats.total_pending);
+    console.log('  - total_available_operators:', stats.total_available_operators);
+    console.log('  - total_busy_operators:', stats.total_busy_operators);
+    console.log('  - total_operators_on_shift:', stats.total_operators_on_shift);
+    console.log('  - oldest_pending_review:', stats.oldest_pending_review);
+    renderQueueStats(stats);
+  }catch(e){
+    console.error('❌ Ошибка загрузки статистики очереди:', e);
+    // Показываем ошибку пользователю
+    notify('Ошибка загрузки статистики очереди: ' + e.message, 'error');
   }
 }
 
-async function unlockReview(reviewId) {
-  // Подтверждение разблокировки
-  if (!confirm('Вы уверены, что хотите разблокировать эту заявку?')) {
-    return;
+// Отображение статистики очереди
+function renderQueueStats(stats){
+  console.log('🎨 Отображаем статистику очереди:', stats);
+  
+  // Обновляем количество заявок в очереди
+  const totalPendingEl = document.getElementById('totalPending');
+  if (totalPendingEl) {
+    totalPendingEl.textContent = stats.total_pending || 0;
+    console.log('📋 Заявок в очереди:', stats.total_pending || 0);
   }
   
-  try {
-    const resp = await fetch(`/api/quality/reviews/${reviewId}/unlock`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${localStorage.getItem('token')}`,
-        'Content-Type': 'application/json'
-      }
-    });
-    
-    const result = await resp.json();
-    
-    if (!resp.ok) {
-      if (resp.status === 404) {
-        notify('❌ Заявка не заблокирована', 'warning');
-      } else if (resp.status === 403) {
-        notify('❌ Заявка заблокирована другим оператором', 'warning');
+  // Обновляем количество операторов на смене
+  const totalOperatorsEl = document.getElementById('totalOperators');
+  if (totalOperatorsEl) {
+    totalOperatorsEl.textContent = stats.total_operators_on_shift || 0;
+    console.log('👥 Операторов на смене:', stats.total_operators_on_shift || 0);
+  }
+  
+  // Обновляем доступных операторов
+  const availableOperatorsEl = document.getElementById('availableOperators');
+  if (availableOperatorsEl) {
+    availableOperatorsEl.textContent = stats.total_available_operators || 0;
+    console.log('✅ Доступных операторов:', stats.total_available_operators || 0);
+  }
+  
+  // Обновляем самую старую заявку
+  const oldestPendingEl = document.getElementById('oldestPending');
+  if (oldestPendingEl) {
+    if (stats.oldest_pending_review) {
+      const date = new Date(stats.oldest_pending_review);
+      const now = new Date();
+      const diffMinutes = Math.floor((now - date) / (1000 * 60));
+      
+      if (diffMinutes < 60) {
+        oldestPendingEl.textContent = `${diffMinutes} мин`;
+      } else if (diffMinutes < 1440) {
+        const hours = Math.floor(diffMinutes / 60);
+        oldestPendingEl.textContent = `${hours} ч`;
       } else {
-        notify(`❌ Ошибка разблокировки: ${result.error || 'Неизвестная ошибка'}`, 'error');
+        const days = Math.floor(diffMinutes / 1440);
+        oldestPendingEl.textContent = `${days} дн`;
       }
-      return;
+    } else {
+      oldestPendingEl.textContent = '—';
     }
-    
-    notify('✅ Заявка разблокирована', 'success');
-    
-    // Удаляем из локального кэша блокировок
-    localLocks.delete(reviewId);
-    
-    // Принудительное обновление для синхронизации с другими пользователями
-    setTimeout(() => {
-      loadReviews();
-      loadAnalytics();
-    }, 500);
-  } catch (e) {
-    console.error('Error unlocking review:', e);
-    notify(`❌ Ошибка разблокировки: ${e.message}`, 'error');
   }
 }
+
 
 
 function renderAnalytics(s){
@@ -348,13 +362,7 @@ function updateHeaderEarnings(earnings) {
 }
 
 function bindEvents(){
-  document.getElementById('refreshBtn').addEventListener('click',loadReviews);
-  document.getElementById('statusFilter').addEventListener('change',loadReviews);
-  document.getElementById('projectFilter').addEventListener('change',filterRows);
-  const search=document.getElementById('searchInput');
-  if(search){
-    search.addEventListener('input',()=>filterRows(search.value));
-  }
+  document.getElementById('getNextReviewBtn').addEventListener('click', getNextReview);
   
   // Дополнительная инициализация меню
   setTimeout(() => {
@@ -362,31 +370,6 @@ function bindEvents(){
   }, 500);
 }
 
-// Загрузка проектов с ценами
-async function loadProjects() {
-  try {
-    const response = await fetch('/api/quality/projects', {
-      headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-    });
-    if (!response.ok) throw new Error('Failed to fetch projects');
-    projects = await response.json();
-    populateProjectFilter();
-  } catch (error) {
-    console.error('Error loading projects:', error);
-  }
-}
-
-// Заполнение фильтра проектов
-function populateProjectFilter() {
-  const select = document.getElementById('projectFilter');
-  select.innerHTML = '<option value="">Все проекты</option>';
-  projects.forEach(project => {
-    const option = document.createElement('option');
-    option.value = project.name;
-    option.textContent = `${project.name} (${project.success_price}₽)`;
-    select.appendChild(option);
-  });
-}
 
 async function loadMe(token){
   const resp=await fetch('/api/auth/me',{headers:{'Authorization':`Bearer ${token}`}});
@@ -395,239 +378,9 @@ async function loadMe(token){
   if(currentUser.role!=='quality'&&currentUser.role!=='admin'){window.location.href='/';}
 }
 
-async function loadReviews(showLoading = false){
-  try{
-    // Очищаем старые локальные блокировки перед загрузкой
-    cleanupLocalLocks();
-    
-    const status=document.getElementById('statusFilter').value;
-    
-    
-    // Показываем индикатор загрузки только если явно запрошено
-    if (showLoading) {
-      const container = document.getElementById('reviewsTableBody');
-      if (container) {
-        container.innerHTML = '<div class="review-loading">🔄 Обновление...</div>';
-      }
-    }
-    
-    const resp=await fetch(`/api/quality/reviews?status=${encodeURIComponent(status)}`,{headers:{'Authorization':`Bearer ${localStorage.getItem('token')}`}});
-    if(!resp.ok){throw new Error('Ошибка загрузки заявок')}
-    const rows=await resp.json();
-    
-    // Очищаем старые локальные блокировки
-    cleanupLocalLocks();
-    
-    // Обновляем локальный кэш блокировок
-    updateLocalLocks(rows);
-    
-    renderReviews(rows);
-  }catch(e){notify(e.message,'error')}
-}
 
-function renderReviews(rows){
-  const container=document.getElementById('reviewsTableBody');
-  container.innerHTML='';
-  // KPI блок
-  renderKPI(rows);
-  if(!rows||rows.length===0){
-    container.innerHTML=`
-      <div class="review-empty">
-        <div class="review-empty-icon">📋</div>
-        <div>Заявок на проверку нет</div>
-        <div style="font-size: 14px; margin-top: 8px; opacity: 0.7;">Все лиды обработаны</div>
-      </div>
-    `;
-    return;
-  }
-  rows.forEach(r=>{
-    const lead=r.leads||{};
-    const project = lead.project || 'Не указан';
-    const projectPrice = projects.find(p => p.name === project)?.success_price || 3.00;
-    
-    // Переводим статусы
-    const statusText = {
-      'pending': 'В ожидании',
-      'approved': 'Одобрено',
-      'rejected': 'Отклонено'
-    }[r.status] || r.status;
-    
-    // Получаем актуальный статус блокировки с учетом локального кэша
-    const lockStatus = getLockStatus(r);
-    const isLocked = lockStatus.is_locked;
-    const lockedByName = lockStatus.locked_by_name || 'Неизвестный оператор';
-    const isLockedByMe = currentUser && lockStatus.locked_by === currentUser.id;
-    
-    // Логируем статус блокировки для отладки
-    if (isLocked) {
-      console.log(`🔒 Заявка ${r.id} заблокирована:`, {
-        locked_by: lockStatus.locked_by,
-        locked_by_name: lockStatus.locked_by_name,
-        is_locked_by_me: isLockedByMe,
-        server_locked: r.is_locked,
-        local_locked: localLocks.has(r.id)
-      });
-    }
-    
-    // Если заявка не pending, она не должна быть заблокирована
-    const shouldBeLocked = r.status === 'pending' && isLocked;
-    
-    const card=document.createElement('div');
-    card.className=`review-card ${shouldBeLocked ? 'locked' : ''}`;
-    card.setAttribute('data-review-id', r.id);
-    card.innerHTML=`
-      <div class="review-header">
-        <div class="review-lead-info">
-          <div class="review-lead-name">${lead.name||'Не указано'}</div>
-          <div class="review-phone">${lead.phone||'Телефон не указан'}</div>
-        </div>
-        <div class="review-status ${r.status}">${statusText}</div>
-      </div>
-      
-      <div class="review-details">
-        <div class="review-detail">
-          <div class="review-detail-label">Проект</div>
-          <div class="review-project">${project}</div>
-        </div>
-        <div class="review-detail">
-          <div class="review-detail-label">Стоимость</div>
-          <div class="review-cost">${projectPrice}₽</div>
-        </div>
-      </div>
-      
-      <div class="review-created">
-        Создано: ${new Date(r.created_at).toLocaleString('ru-RU', {
-          day: '2-digit',
-          month: '2-digit', 
-          year: 'numeric',
-          hour: '2-digit',
-          minute: '2-digit'
-        })}
-      </div>
-      
-      ${shouldBeLocked ? `
-        <div class="review-locked">
-          🔒 Заблокировано: ${lockedByName}
-        </div>
-      ` : ''}
-      
-      <div class="review-actions">
-        ${shouldBeLocked ? (
-          isLockedByMe ? `
-            <a href="/quality-review.html?id=${r.id}" class="review-action-btn check">
-              🔍 Проверить
-            </a>
-            <button onclick="unlockReview('${r.id}')" class="review-action-btn unlock">
-              🔓 Разблокировать
-            </button>
-          ` : `
-            <div class="review-action-btn disabled">
-              🔒 Заблокировано
-            </div>
-          `
-        ) : `
-          <button onclick="lockReview('${r.id}')" class="review-action-btn lock">
-            🔒 Заблокировать
-          </button>
-        `}
-        <button onclick="approve('${r.id}')" class="review-action-btn approve" ${shouldBeLocked && !isLockedByMe ? 'disabled' : ''}>
-          ✅ Одобрить
-        </button>
-        <button onclick="reject('${r.id}')" class="review-action-btn reject" ${shouldBeLocked && !isLockedByMe ? 'disabled' : ''}>
-          ❌ Отклонить
-        </button>
-      </div>
-    `;
-    container.appendChild(card);
-  });
-}
 
-function openReview(id){
-  // Блокируем заявку перед переходом на страницу проверки
-  lockReview(id).then(() => {
-    window.location.href=`/quality-review.html?id=${encodeURIComponent(id)}`;
-  }).catch(() => {
-    // Если не удалось заблокировать, все равно переходим
-    window.location.href=`/quality-review.html?id=${encodeURIComponent(id)}`;
-  });
-}
 
-function filterRows(query){
-  query=(query||'').toLowerCase();
-  const statusFilter = document.getElementById('statusFilter').value;
-  const projectFilter = document.getElementById('projectFilter').value;
-  
-  const cards=[...document.querySelectorAll('#reviewsTableBody .review-card')];
-  cards.forEach(card=>{
-    const text=card.innerText.toLowerCase();
-    const statusMatch = !statusFilter || card.querySelector('.review-status')?.textContent.toLowerCase() === statusFilter.toLowerCase();
-    const projectMatch = !projectFilter || text.includes(projectFilter.toLowerCase());
-    const searchMatch = !query || text.includes(query);
-    
-    card.style.display=(statusMatch && projectMatch && searchMatch)?'':'none';
-  });
-}
-
-function renderKPI(rows){
-  const box=document.getElementById('kpiRow');
-  if(!box) return;
-  const total=rows.length;
-  const withPhone=rows.filter(r=> (r.leads?.phone||'').length>0).length;
-  const pending=rows.filter(r=> r.status==='pending').length;
-  const avgQueueTime='—';
-  box.innerHTML=`
-    <div class="kpi"><span class="icon">📋</span><div><div class="value">${total}</div><div class="label">в списке</div></div></div>
-    <div class="kpi"><span class="icon">📞</span><div><div class="value">${withPhone}</div><div class="label">с телефоном</div></div></div>
-    <div class="kpi"><span class="icon">⏳</span><div><div class="value">${pending}</div><div class="label">в ожидании</div></div></div>
-    <div class="kpi"><span class="icon">⌛</span><div><div class="value">${avgQueueTime}</div><div class="label">сред. ожидание</div></div></div>
-  `;
-}
-
-async function approve(id){
-  try{
-    const comment = prompt('Комментарий ОКК (необязательно):') || '';
-    const resp=await fetch(`/api/quality/reviews/${id}/approve`,{method:'POST',headers:{'Authorization':`Bearer ${localStorage.getItem('token')}`,'Content-Type':'application/json'},body:JSON.stringify({comment})});
-    if(!resp.ok){throw new Error('Не удалось одобрить')}
-    const result = await resp.json();
-    notify(`Одобрено! Оператору зачислено ${result.amount}₽ за проект "${result.project}"`,'success');
-    
-    // Удаляем из локального кэша блокировок (заявка обработана)
-    localLocks.delete(id);
-    
-    // Принудительное обновление для синхронизации с другими пользователями
-    setTimeout(() => {
-      loadReviews();
-      loadAnalytics();
-    }, 500);
-  }catch(e){notify(e.message,'error')}
-}
-
-async function reject(id){
-  try{
-    const comment = prompt('Причина отклонения (необязательно):') || '';
-    const resp=await fetch(`/api/quality/reviews/${id}/reject`,{method:'POST',headers:{'Authorization':`Bearer ${localStorage.getItem('token')}`,'Content-Type':'application/json'},body:JSON.stringify({comment})});
-    if(!resp.ok){throw new Error('Не удалось отклонить')}
-    notify('Отклонено','warning');
-    
-    // Удаляем из локального кэша блокировок (заявка обработана)
-    localLocks.delete(id);
-    
-    // Принудительное обновление для синхронизации с другими пользователями
-    setTimeout(() => {
-      loadReviews();
-      loadAnalytics();
-    }, 500);
-  }catch(e){notify(e.message,'error')}
-}
-
-function notify(message,type='info'){
-  const box=document.getElementById('notifications');
-  const el=document.createElement('div');
-  el.className=`notification ${type}`;
-  el.textContent=message;
-  box.appendChild(el);
-  setTimeout(()=>el.remove(),3000);
-}
 
 // Функция для настройки фиксированной шапки
 function setupStickyHeader() {
@@ -638,121 +391,5 @@ function setupStickyHeader() {
   console.log('📌 Фиксированная шапка настроена (всегда видимая)');
 }
 
-// Функция для мгновенного скрытия заявки у других операторов
-function hideReviewFromOthers(reviewId) {
-  // Находим карточку заявки
-  const reviewCards = document.querySelectorAll('.review-card');
-  reviewCards.forEach(card => {
-    const cardId = card.getAttribute('data-review-id');
-    if (cardId === reviewId) {
-      // Добавляем анимацию исчезновения
-      card.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
-      card.style.opacity = '0';
-      card.style.transform = 'scale(0.95)';
-      
-      // Удаляем карточку после анимации
-      setTimeout(() => {
-        if (card.parentNode) {
-          card.remove();
-          console.log(`🚫 Заявка ${reviewId} мгновенно скрыта`);
-        }
-      }, 300);
-    }
-  });
-}
 
-// Функция для мгновенного показа заявки (при разблокировке)
-function showReviewInstantly(reviewData) {
-  // Эта функция будет вызываться при получении уведомления о разблокировке
-  // Пока что просто обновляем весь список
-  loadReviews();
-}
 
-// Настройка Server-Sent Events для мгновенных уведомлений
-function setupSSE() {
-  const token = localStorage.getItem('token');
-  if (!token) {
-    console.error('❌ Нет токена для SSE');
-    return;
-  }
-  
-  console.log('🔌 Устанавливаем SSE соединение...');
-  const eventSource = new EventSource(`/api/quality/notifications?token=${encodeURIComponent(token)}`);
-  
-  eventSource.onopen = function(event) {
-    console.log('✅ SSE соединение установлено успешно');
-  };
-  
-  eventSource.onmessage = function(event) {
-    console.log('📨 Получено SSE сообщение:', event.data);
-    try {
-      const data = JSON.parse(event.data);
-      handleSSEMessage(data);
-    } catch (error) {
-      console.error('❌ Ошибка парсинга SSE сообщения:', error);
-    }
-  };
-  
-  eventSource.onerror = function(event) {
-    console.error('❌ Ошибка SSE соединения:', event);
-    console.log('🔍 Состояние соединения:', eventSource.readyState);
-    // Переподключаемся через 5 секунд
-    setTimeout(() => {
-      if (eventSource.readyState === EventSource.CLOSED) {
-        console.log('🔄 Переподключение SSE...');
-        setupSSE();
-      }
-    }, 5000);
-  };
-  
-  // Сохраняем ссылку для закрытия при необходимости
-  window.sseConnection = eventSource;
-}
-
-// Обработка сообщений от SSE
-function handleSSEMessage(data) {
-  console.log('📨 Получено SSE сообщение:', data);
-  lastSSEUpdate = Date.now();
-  
-  switch (data.type) {
-    case 'connected':
-      console.log('✅ SSE подключен для пользователя:', data.userId);
-      sseWorking = true;
-      break;
-      
-    case 'review_locked':
-      console.log(`🔒 Заявка ${data.reviewId} заблокирована оператором ${data.lockedBy}`);
-      // Мгновенно скрываем заявку
-      hideReviewFromOthers(data.reviewId);
-      break;
-      
-    case 'review_unlocked':
-      console.log(`🔓 Заявка ${data.reviewId} разблокирована оператором ${data.unlockedBy}`);
-      // Обновляем список заявок
-      loadReviews();
-      break;
-      
-    default:
-      console.log('❓ Неизвестный тип SSE сообщения:', data.type);
-  }
-}
-
-// Тестовая функция для проверки SSE (можно вызвать из консоли)
-window.testSSE = function() {
-  console.log('🧪 Тестирование SSE соединения...');
-  console.log('🔍 Текущее соединение:', window.sseConnection);
-  console.log('📊 Состояние:', window.sseConnection ? window.sseConnection.readyState : 'Нет соединения');
-  
-  if (window.sseConnection) {
-    console.log('✅ SSE соединение существует');
-    if (window.sseConnection.readyState === EventSource.OPEN) {
-      console.log('✅ Соединение активно');
-    } else {
-      console.log('❌ Соединение неактивно, переподключаемся...');
-      setupSSE();
-    }
-  } else {
-    console.log('❌ Нет SSE соединения, создаем...');
-    setupSSE();
-  }
-};

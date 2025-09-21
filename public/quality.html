@@ -30,29 +30,47 @@
         <!-- Аналитика как у оператора -->
         <section class="stats-grid" id="analyticsSection" style="margin-bottom:24px;"></section>
 
-        <div class="section-header">
-          <h2>Очередь проверок</h2>
-          <div class="filters">
-            <div class="search-container">
-              <input type="text" id="searchInput" placeholder="Поиск: имя/телефон/ID" class="search-input" />
-            </div>
-            <select id="statusFilter" class="period-select">
-              <option value="pending" selected>В ожидании</option>
-              <option value="approved">Одобренные</option>
-              <option value="rejected">Отклоненные</option>
-            </select>
-            <select id="projectFilter" class="period-select">
-              <option value="">Все проекты</option>
-            </select>
-            <button id="refreshBtn" class="btn btn-outline">🔄 Обновить</button>
+        <!-- Панель получения заявки -->
+        <div class="review-panel" id="reviewPanel">
+          <div class="review-content">
+            <h2>Проверка заявок</h2>
+            <p>Получите следующую заявку для проверки</p>
+            <button id="getNextReviewBtn" class="review-btn">📋 Получить заявку</button>
           </div>
         </div>
 
-        <div class="kpi-row" id="kpiRow" aria-hidden="true"></div>
-
-        <div class="reviews-container">
-          <div class="reviews-grid" id="reviewsTableBody">
-            <!-- Данные будут загружены через JavaScript -->
+        <!-- Статистика очереди -->
+        <div class="queue-stats-panel" id="queueStatsPanel">
+          <h3>Статистика очереди</h3>
+          <div class="stats-grid">
+            <div class="stat-item">
+              <div class="stat-icon">📋</div>
+              <div class="stat-content">
+                <div class="stat-value" id="totalPending">—</div>
+                <div class="stat-label">Заявок в очереди</div>
+              </div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-icon">👥</div>
+              <div class="stat-content">
+                <div class="stat-value" id="totalOperators">—</div>
+                <div class="stat-label">На смене</div>
+              </div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-icon">✅</div>
+              <div class="stat-content">
+                <div class="stat-value" id="availableOperators">—</div>
+                <div class="stat-label">Доступно</div>
+              </div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-icon">⏳</div>
+              <div class="stat-content">
+                <div class="stat-value" id="oldestPending">—</div>
+                <div class="stat-label">Самая старая заявка</div>
+              </div>
+            </div>
           </div>
         </div>
       </div>

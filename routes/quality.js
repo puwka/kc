@@ -604,6 +604,281 @@ router.get('/reviews/:id', authenticateToken, requireQuality, async (req, res) =
   }
 });
 
+// ====== Система очереди ОКК ======
+
+// Получить следующую заявку для ОКК оператора
+router.get('/next-review', authenticateToken, requireQuality, async (req, res) => {
+  try {
+    const operatorId = req.user.id;
+
+    // Проверяем, есть ли уже назначенная заявка
+    const { data: currentStatus, error: statusError } = await supabaseAdmin
+      .from('qc_operator_status')
+      .select('current_review_id, is_available')
+      .eq('operator_id', operatorId)
+      .single();
+
+    if (statusError && statusError.code !== 'PGRST116') {
+      console.error('Get operator status error:', statusError);
+      return res.status(500).json({ error: 'Database error' });
+    }
+
+    let reviewId = null;
+
+    // Если есть назначенная заявка, проверяем её актуальность
+    if (currentStatus?.current_review_id) {
+      const { data: assignedReview, error: reviewError } = await supabaseAdmin
+        .from('quality_reviews')
+        .select('id, status, reviewer_id')
+        .eq('id', currentStatus.current_review_id)
+        .single();
+
+      if (!reviewError && assignedReview?.status === 'pending' && assignedReview?.reviewer_id === operatorId) {
+        reviewId = assignedReview.id;
+      } else {
+        // Заявка больше не актуальна, освобождаем оператора
+        await supabaseAdmin
+          .from('qc_operator_status')
+          .update({
+            is_available: true,
+            current_review_id: null,
+            last_activity: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          })
+          .eq('operator_id', operatorId);
+      }
+    }
+
+    // Если нет назначенной заявки, ищем новую
+    if (!reviewId) {
+      // Находим доступного оператора (себя)
+      const { data: operatorStatus, error: operatorError } = await supabaseAdmin
+        .from('qc_operator_status')
+        .select('is_available')
+        .eq('operator_id', operatorId)
+        .single();
+
+      if (operatorError && operatorError.code !== 'PGRST116') {
+        console.error('Get operator status error:', operatorError);
+        return res.status(500).json({ error: 'Database error' });
+      }
+
+      if (!operatorStatus?.is_available) {
+        return res.json({ 
+          success: false, 
+          message: 'Оператор уже занят обработкой заявки' 
+        });
+      }
+
+      // Ищем новую заявку без назначения
+      const { data: availableReviews, error: reviewsError } = await supabaseAdmin
+        .from('quality_reviews')
+        .select('id')
+        .eq('status', 'pending')
+        .is('reviewer_id', null)
+        .order('created_at', { ascending: true })
+        .limit(1);
+
+      if (reviewsError) {
+        console.error('Get available reviews error:', reviewsError);
+        return res.status(500).json({ error: 'Database error' });
+      }
+
+      if (!availableReviews || availableReviews.length === 0) {
+        return res.json({ 
+          success: false, 
+          message: 'Нет доступных заявок для проверки' 
+        });
+      }
+
+      reviewId = availableReviews[0].id;
+
+      // Назначаем заявку оператору
+      const { error: assignError } = await supabaseAdmin
+        .from('quality_reviews')
+        .update({ reviewer_id: operatorId })
+        .eq('id', reviewId);
+
+      if (assignError) {
+        console.error('Assign review error:', assignError);
+        return res.status(500).json({ error: 'Failed to assign review' });
+      }
+
+      // Обновляем статус оператора
+      const { error: updateStatusError } = await supabaseAdmin
+        .from('qc_operator_status')
+        .upsert({
+          operator_id: operatorId,
+          is_available: false,
+          current_review_id: reviewId,
+          last_activity: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        }, {
+          onConflict: 'operator_id'
+        });
+
+      if (updateStatusError) {
+        console.error('Update operator status error:', updateStatusError);
+        // Не возвращаем ошибку, так как заявка уже назначена
+      }
+    }
+
+    // Получаем данные заявки
+    const { data: reviewData, error: reviewDataError } = await supabaseAdmin
+      .from('quality_reviews')
+      .select(`
+        id, 
+        lead_id, 
+        status, 
+        comment, 
+        created_at, 
+        reviewed_at,
+        reviewer_id,
+        leads (
+          id, name, phone, assigned_to, project, status, comment, created_at,
+          profiles!leads_assigned_to_fkey (name)
+        )
+      `)
+      .eq('id', reviewId)
+      .single();
+
+    if (reviewDataError) {
+      console.error('Get review data error:', reviewDataError);
+      return res.status(500).json({ error: 'Failed to get review data' });
+    }
+
+    res.json({ 
+      success: true, 
+      review: reviewData 
+    });
+
+  } catch (error) {
+    console.error('Get next QC review error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Освободить ОКК оператора
+router.post('/release-operator', authenticateToken, requireQuality, async (req, res) => {
+  try {
+    const operatorId = req.user.id;
+
+    const { error } = await supabaseAdmin
+      .from('qc_operator_status')
+      .update({
+        is_available: true,
+        current_review_id: null,
+        last_activity: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      })
+      .eq('operator_id', operatorId);
+
+    if (error) {
+      console.error('Release QC operator error:', error);
+      return res.status(500).json({ error: 'Database error' });
+    }
+
+    res.json({ success: true });
+
+  } catch (error) {
+    console.error('Release QC operator error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Получить статистику очереди ОКК
+router.get('/queue-stats', authenticateToken, requireQuality, async (req, res) => {
+  try {
+    // Получаем количество заявок в очереди
+    const { count: pendingCount, error: pendingError } = await supabaseAdmin
+      .from('quality_reviews')
+      .select('*', { count: 'exact', head: true })
+      .eq('status', 'pending');
+
+    if (pendingError) {
+      console.error('Get pending reviews count error:', pendingError);
+      return res.status(500).json({ error: 'Database error' });
+    }
+
+    // Получаем количество доступных операторов
+    const { count: availableCount, error: availableError } = await supabaseAdmin
+      .from('qc_operator_status')
+      .select('*', { count: 'exact', head: true })
+      .eq('is_available', true);
+
+    if (availableError) {
+      console.error('Get available operators count error:', availableError);
+      return res.status(500).json({ error: 'Database error' });
+    }
+
+    // Получаем количество занятых операторов
+    const { count: busyCount, error: busyError } = await supabaseAdmin
+      .from('qc_operator_status')
+      .select('*', { count: 'exact', head: true })
+      .eq('is_available', false);
+
+    if (busyError) {
+      console.error('Get busy operators count error:', busyError);
+      return res.status(500).json({ error: 'Database error' });
+    }
+
+    // Получаем самую старую заявку в очереди
+    const { data: oldestReview, error: oldestError } = await supabaseAdmin
+      .from('quality_reviews')
+      .select('created_at')
+      .eq('status', 'pending')
+      .order('created_at', { ascending: true })
+      .limit(1);
+
+    if (oldestError) {
+      console.error('Get oldest review error:', oldestError);
+      return res.status(500).json({ error: 'Database error' });
+    }
+
+    // Вычисляем общее количество операторов на смене
+    const totalOperatorsOnShift = (availableCount || 0) + (busyCount || 0);
+
+    res.json({
+      total_pending: pendingCount || 0,
+      total_available_operators: availableCount || 0,
+      total_busy_operators: busyCount || 0,
+      total_operators_on_shift: totalOperatorsOnShift,
+      oldest_pending_review: oldestReview?.[0]?.created_at || null
+    });
+
+  } catch (error) {
+    console.error('Get QC queue stats error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST /api/quality/remove-operator - Удалить оператора из очереди (при выходе)
+router.post('/remove-operator', authenticateToken, requireQuality, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    
+    console.log(`🗑️ Удаляем оператора ${userId} из очереди ОКК`);
+    
+    // Удаляем запись из qc_operator_status
+    const { error } = await supabaseAdmin
+      .from('qc_operator_status')
+      .delete()
+      .eq('operator_id', userId);
+    
+    if (error) {
+      console.error('Remove operator error:', error);
+      return res.status(500).json({ error: 'Database error' });
+    }
+    
+    console.log(`✅ Оператор ${userId} удален из очереди ОКК`);
+    res.json({ success: true, message: 'Оператор удален из очереди' });
+    
+  } catch (error) {
+    console.error('Remove operator exception:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // ====== Server-Sent Events для мгновенных уведомлений ======
 
 // Хранилище активных соединений
