@@ -528,6 +528,62 @@ router.get('/reviews/locks', authenticateToken, requireQuality, async (req, res)
   }
 });
 
+// Получить конкретную заявку по ID
+router.get('/reviews/:id', authenticateToken, requireQuality, async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const { data, error } = await supabaseAdmin
+      .from('quality_reviews')
+      .select(`
+        id, 
+        lead_id, 
+        status, 
+        comment, 
+        created_at, 
+        reviewed_at,
+        reviewer_id,
+        leads (
+          id,
+          name, 
+          phone, 
+          assigned_to,
+          project,
+          status,
+          comment,
+          created_at,
+          profiles!leads_assigned_to_fkey (name)
+        )
+      `)
+      .eq('id', id)
+      .single();
+
+    if (error) {
+      console.error('Get review error:', error);
+      return res.status(500).json({ error: 'Database error' });
+    }
+
+    if (!data) {
+      return res.status(404).json({ error: 'Review not found' });
+    }
+
+    // Добавляем информацию о блокировке
+    const lockInfo = reviewLocks.get(data.id);
+    const reviewWithLock = {
+      ...data,
+      is_locked: !!lockInfo,
+      locked_by: lockInfo?.userId || null,
+      locked_by_name: lockInfo?.userName || null,
+      locked_at: lockInfo ? new Date(lockInfo.lockedAt).toISOString() : null
+    };
+
+    res.json(reviewWithLock);
+  } catch (error) {
+    console.error('Get review by ID error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // ====== Helper Functions ======
 
 

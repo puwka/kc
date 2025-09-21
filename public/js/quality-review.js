@@ -26,8 +26,18 @@ async function init() {
         await loadMe(token);
         await loadReview();
         bindEvents();
-        setupUserMenu();
         loadUserEarnings();
+        
+        // Настройка меню после загрузки всех данных
+        setTimeout(() => {
+            setupUserMenu();
+        }, 500);
+        
+        // Дополнительная инициализация через 2 секунды для надежности
+        setTimeout(() => {
+            console.log('🔄 Дополнительная инициализация меню...');
+            setupUserMenu();
+        }, 2000);
         
         // Автоматическая разблокировка при закрытии страницы
         let isUnlocked = false;
@@ -77,7 +87,6 @@ async function loadMe(token) {
     currentUser = data.user;
     
     document.getElementById('userName').textContent = currentUser.name;
-    document.getElementById('userRole').textContent = currentUser.role;
     
     if (currentUser.role !== 'quality' && currentUser.role !== 'admin') {
         location.href = '/';
@@ -87,21 +96,26 @@ async function loadMe(token) {
 async function loadReview() {
     showLoader();
     try {
-        const resp = await fetch(`/api/quality/reviews?status=pending`, {
+        const resp = await fetch(`/api/quality/reviews/${reviewId}`, {
             headers: {
                 'Authorization': `Bearer ${localStorage.getItem('token')}`
             }
         });
-        const all = await resp.json();
-        const review = all.find(r => r.id === reviewId);
         
-        if (!review) {
-            notify('Заявка не найдена или уже обработана', 'warning');
-            location.href = '/quality.html';
-            return;
+        if (!resp.ok) {
+            if (resp.status === 404) {
+                notify('Заявка не найдена или уже обработана', 'warning');
+                location.href = '/quality.html';
+                return;
+            }
+            throw new Error(`HTTP ${resp.status}: ${resp.statusText}`);
         }
         
+        const review = await resp.json();
         renderLead(review);
+    } catch (error) {
+        console.error('Error loading review:', error);
+        notify('Ошибка загрузки страницы', 'error');
     } finally {
         hideLoader();
     }
@@ -619,14 +633,27 @@ function notify(message, type = 'info') {
 
 // Функция для настройки выпадающего меню
 function setupUserMenu() {
+  console.log('🔧 Настройка выпадающего меню...');
+  
   const checkElements = () => {
     const userName = document.getElementById('userName');
     const userDropdown = document.getElementById('userDropdown');
     
+    console.log('🔍 Поиск элементов:', { userName: !!userName, userDropdown: !!userDropdown });
+    
     if (!userName || !userDropdown) {
+      console.log('⏳ Элементы не найдены, повтор через 100мс...');
       setTimeout(checkElements, 100);
       return;
     }
+    
+    console.log('✅ Элементы найдены, настройка обработчиков...');
+    console.log('📋 Проверка элементов:', {
+      userName: userName,
+      userDropdown: userDropdown,
+      userNameText: userName.textContent,
+      userDropdownDisplay: userDropdown.style.display
+    });
     
     // Удаляем все старые обработчики
     userName.onclick = null;
@@ -635,13 +662,19 @@ function setupUserMenu() {
     
     // Добавляем обработчик клика
     userName.onclick = function(e) {
+      console.log('👆 Клик по имени пользователя');
       e.preventDefault();
       e.stopPropagation();
       
-      if (userDropdown.style.display === 'block' || userDropdown.style.display === '') {
+      const currentDisplay = userDropdown.style.display;
+      console.log('📊 Текущий display:', currentDisplay);
+      
+      if (currentDisplay === 'block' || currentDisplay === '') {
         userDropdown.style.display = 'none';
+        console.log('❌ Меню скрыто');
       } else {
         userDropdown.style.display = 'block';
+        console.log('✅ Меню показано');
       }
     };
     
@@ -649,6 +682,7 @@ function setupUserMenu() {
     const logoutBtn = document.getElementById('logoutBtn');
     if (logoutBtn) {
       logoutBtn.onclick = function(e) {
+        console.log('🚪 Выход из системы');
         e.preventDefault();
         e.stopPropagation();
         localStorage.clear();
@@ -660,8 +694,11 @@ function setupUserMenu() {
     document.onclick = function(e) {
       if (!userName.contains(e.target) && !userDropdown.contains(e.target)) {
         userDropdown.style.display = 'none';
+        console.log('👆 Клик вне меню, скрываем');
       }
     };
+    
+    console.log('🎉 Обработчики настроены успешно');
   };
   
   checkElements();
@@ -692,3 +729,20 @@ function updateHeaderEarnings(earnings) {
     userEarnings.textContent = (earnings || 0).toFixed(2) + ' ₽';
   }
 }
+
+// Тестовая функция для проверки меню (можно вызвать из консоли)
+window.testMenu = function() {
+  console.log('🧪 Тестирование меню...');
+  const userName = document.getElementById('userName');
+  const userDropdown = document.getElementById('userDropdown');
+  
+  console.log('Элементы:', { userName: !!userName, userDropdown: !!userDropdown });
+  
+  if (userName && userDropdown) {
+    console.log('Текущий display:', userDropdown.style.display);
+    userDropdown.style.display = userDropdown.style.display === 'block' ? 'none' : 'block';
+    console.log('Новый display:', userDropdown.style.display);
+  } else {
+    console.error('Элементы не найдены!');
+  }
+};
