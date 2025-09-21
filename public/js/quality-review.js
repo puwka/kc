@@ -41,8 +41,6 @@ async function init() {
                         'Content-Type': 'application/json'
                     }
                 }).then(() => {
-                    // Устанавливаем флаг принудительного обновления
-                    sessionStorage.setItem('forceRefreshQC', 'true');
                     // Принудительно обновляем список заявок на главной странице
                     if (window.opener && window.opener.loadReviews) {
                         window.opener.loadReviews();
@@ -511,8 +509,6 @@ function bindEvents() {
                         'Content-Type': 'application/json'
                     }
                 }).then(() => {
-                    // Устанавливаем флаг принудительного обновления
-                    sessionStorage.setItem('forceRefreshQC', 'true');
                     // Принудительно обновляем список заявок на главной странице
                     if (window.opener && window.opener.loadReviews) {
                         window.opener.loadReviews();
@@ -560,8 +556,6 @@ async function saveDecision(action) {
                     'Content-Type': 'application/json'
                 }
             }).then(() => {
-                // Устанавливаем флаг принудительного обновления
-                sessionStorage.setItem('forceRefreshQC', 'true');
                 // Принудительно обновляем список заявок на главной странице
                 if (window.opener && window.opener.loadReviews) {
                     window.opener.loadReviews();

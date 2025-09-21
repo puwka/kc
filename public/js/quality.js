@@ -96,8 +96,6 @@ async function unlockReview(reviewId) {
     }
     
     notify('✅ Заявка разблокирована', 'success');
-    // Устанавливаем флаг принудительного обновления
-    sessionStorage.setItem('forceRefreshQC', 'true');
     // Принудительное обновление для синхронизации с другими пользователями
     setTimeout(() => loadReviews(), 500);
     setTimeout(() => loadReviews(), 1500);
@@ -190,12 +188,6 @@ async function loadReviews(showLoading = false){
   try{
     const status=document.getElementById('statusFilter').value;
     
-    // Проверяем, нужно ли принудительное обновление
-    const shouldForceRefresh = sessionStorage.getItem('forceRefreshQC');
-    if (shouldForceRefresh) {
-      sessionStorage.removeItem('forceRefreshQC');
-      showLoading = true;
-    }
     
     // Показываем индикатор загрузки только если явно запрошено
     if (showLoading) {
@@ -364,8 +356,6 @@ async function approve(id){
     if(!resp.ok){throw new Error('Не удалось одобрить')}
     const result = await resp.json();
     notify(`Одобрено! Оператору зачислено ${result.amount}₽ за проект "${result.project}"`,'success');
-    // Устанавливаем флаг принудительного обновления
-    sessionStorage.setItem('forceRefreshQC', 'true');
     // Принудительное обновление для синхронизации с другими пользователями
     setTimeout(() => loadReviews(), 500);
     setTimeout(() => loadReviews(), 1500);
@@ -378,8 +368,6 @@ async function reject(id){
     const resp=await fetch(`/api/quality/reviews/${id}/reject`,{method:'POST',headers:{'Authorization':`Bearer ${localStorage.getItem('token')}`,'Content-Type':'application/json'},body:JSON.stringify({comment})});
     if(!resp.ok){throw new Error('Не удалось отклонить')}
     notify('Отклонено','warning');
-    // Устанавливаем флаг принудительного обновления
-    sessionStorage.setItem('forceRefreshQC', 'true');
     // Принудительное обновление для синхронизации с другими пользователями
     setTimeout(() => loadReviews(), 500);
     setTimeout(() => loadReviews(), 1500);

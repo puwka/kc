@@ -406,26 +406,26 @@ router.post('/reviews/:id/reject', authenticateToken, requireQuality, async (req
 // Кэш блокировок в памяти (временное решение)
 const reviewLocks = new Map(); // reviewId -> { userId, lockedAt, userName }
 
-// Очистка старых блокировок (старше 30 минут)
+// Очистка старых блокировок (старше 2 часов)
 setInterval(() => {
+  const now = Date.now();
+  const twoHoursAgo = now - (2 * 60 * 60 * 1000);
+  
+  for (const [reviewId, lock] of reviewLocks.entries()) {
+    if (lock.lockedAt < twoHoursAgo) {
+      reviewLocks.delete(reviewId);
+      console.log(`🧹 Автоматически разблокирована заявка ${reviewId} (старше 2 часов)`);
+    }
+  }
+}, 10 * 60 * 1000); // Проверяем каждые 10 минут
+
+// Функция для очистки старых блокировок
+function cleanupOldLocks() {
   const now = Date.now();
   const thirtyMinutesAgo = now - (30 * 60 * 1000);
   
   for (const [reviewId, lock] of reviewLocks.entries()) {
     if (lock.lockedAt < thirtyMinutesAgo) {
-      reviewLocks.delete(reviewId);
-      console.log(`🧹 Автоматически разблокирована заявка ${reviewId} (старше 30 минут)`);
-    }
-  }
-}, 5 * 60 * 1000); // Проверяем каждые 5 минут
-
-// Функция для очистки старых блокировок
-function cleanupOldLocks() {
-  const now = Date.now();
-  const fiveMinutesAgo = now - (5 * 60 * 1000);
-  
-  for (const [reviewId, lock] of reviewLocks.entries()) {
-    if (lock.lockedAt < fiveMinutesAgo) {
       reviewLocks.delete(reviewId);
       console.log(`🧹 Очищена старая блокировка заявки ${reviewId}`);
     }
