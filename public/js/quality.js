@@ -5,10 +5,10 @@ let localLocks = new Map(); // Локальный кэш блокировок д
 
 // Функция для обновления локального кэша блокировок
 function updateLocalLocks(serverLocks) {
-  // Очищаем локальный кэш от старых записей (старше 1 минуты)
+  // Очищаем локальный кэш от старых записей (старше 10 секунд)
   const now = Date.now();
   for (const [reviewId, lock] of localLocks.entries()) {
-    if (now - lock.timestamp > 60000) { // 1 минута
+    if (now - lock.timestamp > 10000) { // 10 секунд
       localLocks.delete(reviewId);
     }
   }
@@ -34,8 +34,8 @@ function getLockStatus(review) {
   const localLock = localLocks.get(review.id);
   const serverLock = review.is_locked;
   
-  // Если есть локальная блокировка и она свежая (менее 30 секунд), используем её
-  if (localLock && (Date.now() - localLock.timestamp < 30000)) {
+  // Если есть локальная блокировка и она очень свежая (менее 5 секунд), используем её
+  if (localLock && (Date.now() - localLock.timestamp < 5000)) {
     return {
       is_locked: true,
       locked_by: localLock.locked_by,
@@ -56,10 +56,10 @@ function getLockStatus(review) {
 // Функция для очистки старых локальных блокировок
 function cleanupLocalLocks() {
   const now = Date.now();
-  const thirtySecondsAgo = now - 30000; // 30 секунд
+  const tenSecondsAgo = now - 10000; // 10 секунд
   
   for (const [reviewId, lock] of localLocks.entries()) {
-    if (lock.timestamp < thirtySecondsAgo) {
+    if (lock.timestamp < tenSecondsAgo) {
       localLocks.delete(reviewId);
       console.log(`🧹 Очищена старая локальная блокировка заявки ${reviewId}`);
     }
@@ -81,6 +81,11 @@ async function init(){
   bindEvents();
   loadProjects();
   loadAnalytics();
+  
+  // Очищаем локальный кэш при инициализации
+  localLocks.clear();
+  console.log('🧹 Локальный кэш блокировок очищен при инициализации');
+  
   loadReviews();
   setupStickyHeader();
   
@@ -371,6 +376,9 @@ async function loadMe(token){
 
 async function loadReviews(showLoading = false){
   try{
+    // Очищаем старые локальные блокировки перед загрузкой
+    cleanupLocalLocks();
+    
     const status=document.getElementById('statusFilter').value;
     
     
@@ -428,6 +436,17 @@ function renderReviews(rows){
     const isLocked = lockStatus.is_locked;
     const lockedByName = lockStatus.locked_by_name || 'Неизвестный оператор';
     const isLockedByMe = currentUser && lockStatus.locked_by === currentUser.id;
+    
+    // Логируем статус блокировки для отладки
+    if (isLocked) {
+      console.log(`🔒 Заявка ${r.id} заблокирована:`, {
+        locked_by: lockStatus.locked_by,
+        locked_by_name: lockStatus.locked_by_name,
+        is_locked_by_me: isLockedByMe,
+        server_locked: r.is_locked,
+        local_locked: localLocks.has(r.id)
+      });
+    }
     
     // Если заявка не pending, она не должна быть заблокирована
     const shouldBeLocked = r.status === 'pending' && isLocked;
