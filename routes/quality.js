@@ -144,9 +144,6 @@ router.get('/reviews', authenticateToken, requireQuality, async (req, res) => {
         created_at, 
         reviewed_at,
         reviewer_id,
-        locked_by,
-        locked_at,
-        is_locked,
         leads (
           id,
           name, 
@@ -157,8 +154,7 @@ router.get('/reviews', authenticateToken, requireQuality, async (req, res) => {
           comment,
           created_at,
           profiles!leads_assigned_to_fkey (name)
-        ),
-        locked_by_profile:profiles!quality_reviews_locked_by_fkey (name)
+        )
       `)
       .eq('status', status); // Показываем все заявки всем ОКК операторам
 

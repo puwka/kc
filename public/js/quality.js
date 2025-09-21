@@ -205,10 +205,10 @@ function renderReviews(rows){
       'rejected': 'Отклонено'
     }[r.status] || r.status;
     
-    // Проверяем статус блокировки
+    // Проверяем статус блокировки (получаем из кэша на сервере)
     const isLocked = r.is_locked || false;
     const lockedByName = r.locked_by_name || 'Неизвестный оператор';
-    const isLockedByMe = r.locked_by === currentUser?.id;
+    const isLockedByMe = currentUser && r.locked_by === currentUser.id;
     
     const card=document.createElement('div');
     card.className=`review-card ${isLocked ? 'locked' : ''}`;
