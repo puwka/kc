@@ -1,6 +1,62 @@
 let currentUser=null;
 let projects = [];
 let reviews = [];
+let localLocks = new Map(); // Локальный кэш блокировок для защиты от конфликтов
+
+// Функция для обновления локального кэша блокировок
+function updateLocalLocks(serverLocks) {
+  // Обновляем локальный кэш только если серверные данные более свежие
+  for (const review of serverLocks) {
+    if (review.is_locked && review.locked_by) {
+      localLocks.set(review.id, {
+        locked_by: review.locked_by,
+        locked_by_name: review.locked_by_name,
+        locked_at: review.locked_at,
+        timestamp: Date.now()
+      });
+    } else if (!review.is_locked) {
+      // Если сервер говорит, что заявка не заблокирована, удаляем из локального кэша
+      localLocks.delete(review.id);
+    }
+  }
+}
+
+// Функция для получения актуального статуса блокировки
+function getLockStatus(review) {
+  const localLock = localLocks.get(review.id);
+  const serverLock = review.is_locked;
+  
+  // Если есть локальная блокировка и она свежая (менее 30 секунд), используем её
+  if (localLock && (Date.now() - localLock.timestamp < 30000)) {
+    return {
+      is_locked: true,
+      locked_by: localLock.locked_by,
+      locked_by_name: localLock.locked_by_name,
+      locked_at: localLock.locked_at
+    };
+  }
+  
+  // Иначе используем серверные данные
+  return {
+    is_locked: serverLock || false,
+    locked_by: review.locked_by || null,
+    locked_by_name: review.locked_by_name || null,
+    locked_at: review.locked_at || null
+  };
+}
+
+// Функция для очистки старых локальных блокировок
+function cleanupLocalLocks() {
+  const now = Date.now();
+  const thirtySecondsAgo = now - 30000; // 30 секунд
+  
+  for (const [reviewId, lock] of localLocks.entries()) {
+    if (lock.timestamp < thirtySecondsAgo) {
+      localLocks.delete(reviewId);
+      console.log(`🧹 Очищена старая локальная блокировка заявки ${reviewId}`);
+    }
+  }
+}
 
 document.addEventListener('DOMContentLoaded',()=>{init()});
 
@@ -14,10 +70,10 @@ async function init(){
   loadAnalytics();
   loadReviews();
   
-// Автоматическое обновление списка заявок каждые 1.5 секунды
+// Автоматическое обновление списка заявок каждые 3 секунды
 setInterval(() => {
   loadReviews();
-}, 1500);
+}, 3000);
 
 // Обновление при возврате на страницу (когда пользователь переключается между вкладками)
 document.addEventListener('visibilitychange', () => {
@@ -70,9 +126,18 @@ async function lockReview(reviewId) {
     }
     
     notify('✅ Заявка заблокирована', 'success');
+    
+    // Обновляем локальный кэш блокировок
+    localLocks.set(reviewId, {
+      locked_by: currentUser.id,
+      locked_by_name: currentUser.name,
+      locked_at: new Date().toISOString(),
+      timestamp: Date.now()
+    });
+    
     // Принудительное обновление для синхронизации с другими пользователями
-    setTimeout(() => loadReviews(), 500);
-    setTimeout(() => loadReviews(), 1500);
+    setTimeout(() => loadReviews(), 1000);
+    setTimeout(() => loadReviews(), 3000);
   } catch (e) {
     console.error('Error locking review:', e);
     notify(`❌ Ошибка блокировки: ${e.message}`, 'error');
@@ -96,9 +161,13 @@ async function unlockReview(reviewId) {
     }
     
     notify('✅ Заявка разблокирована', 'success');
+    
+    // Удаляем из локального кэша блокировок
+    localLocks.delete(reviewId);
+    
     // Принудительное обновление для синхронизации с другими пользователями
-    setTimeout(() => loadReviews(), 500);
-    setTimeout(() => loadReviews(), 1500);
+    setTimeout(() => loadReviews(), 1000);
+    setTimeout(() => loadReviews(), 3000);
   } catch (e) {
     console.error('Error unlocking review:', e);
     notify(`❌ Ошибка разблокировки: ${e.message}`, 'error');
@@ -200,6 +269,13 @@ async function loadReviews(showLoading = false){
     const resp=await fetch(`/api/quality/reviews?status=${encodeURIComponent(status)}`,{headers:{'Authorization':`Bearer ${localStorage.getItem('token')}`}});
     if(!resp.ok){throw new Error('Ошибка загрузки заявок')}
     const rows=await resp.json();
+    
+    // Очищаем старые локальные блокировки
+    cleanupLocalLocks();
+    
+    // Обновляем локальный кэш блокировок
+    updateLocalLocks(rows);
+    
     renderReviews(rows);
   }catch(e){notify(e.message,'error')}
 }
@@ -231,10 +307,11 @@ function renderReviews(rows){
       'rejected': 'Отклонено'
     }[r.status] || r.status;
     
-    // Проверяем статус блокировки (получаем из кэша на сервере)
-    const isLocked = r.is_locked || false;
-    const lockedByName = r.locked_by_name || 'Неизвестный оператор';
-    const isLockedByMe = currentUser && r.locked_by === currentUser.id;
+    // Получаем актуальный статус блокировки с учетом локального кэша
+    const lockStatus = getLockStatus(r);
+    const isLocked = lockStatus.is_locked;
+    const lockedByName = lockStatus.locked_by_name || 'Неизвестный оператор';
+    const isLockedByMe = currentUser && lockStatus.locked_by === currentUser.id;
     
     // Если заявка не pending, она не должна быть заблокирована
     const shouldBeLocked = r.status === 'pending' && isLocked;
@@ -356,9 +433,13 @@ async function approve(id){
     if(!resp.ok){throw new Error('Не удалось одобрить')}
     const result = await resp.json();
     notify(`Одобрено! Оператору зачислено ${result.amount}₽ за проект "${result.project}"`,'success');
+    
+    // Удаляем из локального кэша блокировок (заявка обработана)
+    localLocks.delete(id);
+    
     // Принудительное обновление для синхронизации с другими пользователями
-    setTimeout(() => loadReviews(), 500);
-    setTimeout(() => loadReviews(), 1500);
+    setTimeout(() => loadReviews(), 1000);
+    setTimeout(() => loadReviews(), 3000);
   }catch(e){notify(e.message,'error')}
 }
 
@@ -368,9 +449,13 @@ async function reject(id){
     const resp=await fetch(`/api/quality/reviews/${id}/reject`,{method:'POST',headers:{'Authorization':`Bearer ${localStorage.getItem('token')}`,'Content-Type':'application/json'},body:JSON.stringify({comment})});
     if(!resp.ok){throw new Error('Не удалось отклонить')}
     notify('Отклонено','warning');
+    
+    // Удаляем из локального кэша блокировок (заявка обработана)
+    localLocks.delete(id);
+    
     // Принудительное обновление для синхронизации с другими пользователями
-    setTimeout(() => loadReviews(), 500);
-    setTimeout(() => loadReviews(), 1500);
+    setTimeout(() => loadReviews(), 1000);
+    setTimeout(() => loadReviews(), 3000);
   }catch(e){notify(e.message,'error')}
 }
 
