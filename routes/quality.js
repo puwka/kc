@@ -11,7 +11,6 @@ async function sendToTelegram(text) {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   const chatId = process.env.TELEGRAM_GROUP_ID; // negative id for group/channel
   if (!token || !chatId) {
-    console.warn('Telegram env not set. Skipping send.');
     return { skipped: true };
   }
   try {
@@ -22,12 +21,10 @@ async function sendToTelegram(text) {
     });
     const data = await resp.json();
     if (!data.ok) {
-      console.error('Telegram send failed:', data);
       return { ok: false, data };
     }
     return { ok: true };
   } catch (e) {
-    console.error('Telegram send error:', e.message);
     return { ok: false, error: e.message };
   }
 }
@@ -69,11 +66,6 @@ router.put('/reviews/:id/operator-comment', authenticateToken, requireQuality, a
     const { id } = req.params;
     const { comment } = req.body;
     
-    console.log('🔧 Обновление комментария оператора:', {
-      reviewId: id,
-      comment: comment,
-      user: req.user
-    });
     
     if (!comment) {
       return res.status(400).json({ error: 'Comment is required' });
@@ -87,11 +79,8 @@ router.put('/reviews/:id/operator-comment', authenticateToken, requireQuality, a
       .single();
       
     if (reviewError || !review) {
-      console.error('❌ Review not found:', reviewError);
       return res.status(404).json({ error: 'Review not found' });
     }
-    
-    console.log('📋 Found review, lead_id:', review.lead_id);
     
     // Обновляем комментарий в таблице leads
     const { data: updatedLead, error: updateError } = await supabaseAdmin
@@ -102,14 +91,8 @@ router.put('/reviews/:id/operator-comment', authenticateToken, requireQuality, a
       .single();
       
     if (updateError) {
-      console.error('❌ Error updating lead comment:', updateError);
       return res.status(500).json({ error: 'Failed to update lead comment' });
     }
-    
-    console.log('✅ Lead comment updated successfully:', {
-      id: updatedLead.id,
-      comment: updatedLead.comment
-    });
     
     res.json({ 
       success: true, 
@@ -118,7 +101,6 @@ router.put('/reviews/:id/operator-comment', authenticateToken, requireQuality, a
     });
     
   } catch (error) {
-    console.error('❌ Error updating operator comment:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -178,7 +160,6 @@ router.get('/reviews', authenticateToken, requireQuality, async (req, res) => {
     const { data, error } = await query;
 
     if (error) {
-      console.error('Quality list error:', error);
       return res.status(500).json({ error: 'Failed to fetch reviews' });
     }
 
@@ -195,7 +176,6 @@ router.get('/reviews', authenticateToken, requireQuality, async (req, res) => {
       // Если заявка уже обработана, автоматически разблокируем её
       if (review.status !== 'pending' && lockInfo) {
         reviewLocks.delete(review.id);
-        console.log(`🔓 Автоматически разблокирована обработанная заявка ${review.id}`);
       }
       
       return {
@@ -217,7 +197,6 @@ router.get('/reviews', authenticateToken, requireQuality, async (req, res) => {
 
     res.json(reviewsWithLocks);
   } catch (error) {
-    console.error('Quality reviews error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -227,6 +206,7 @@ router.post('/reviews/:id/approve', authenticateToken, requireQuality, async (re
   try {
     const { id } = req.params;
     const { comment } = req.body || {};
+    
 
     // Получаем данные review
     const { data: reviewData, error: reviewError } = await supabaseAdmin
@@ -236,13 +216,8 @@ router.post('/reviews/:id/approve', authenticateToken, requireQuality, async (re
       .single();
 
     if (reviewError || !reviewData) {
-      console.error('Review not found:', reviewError);
       return res.status(404).json({ error: 'Review not found' });
     }
-
-    console.log('Review data:', reviewData);
-    console.log('Lead ID type:', typeof reviewData.lead_id);
-    console.log('Lead ID value:', reviewData.lead_id);
 
     // Сначала обновляем reviewer_id в quality_reviews
     const { error: updateReviewerError } = await supabaseAdmin
@@ -251,7 +226,6 @@ router.post('/reviews/:id/approve', authenticateToken, requireQuality, async (re
       .eq('id', id);
     
     if (updateReviewerError) {
-      console.error('Error updating reviewer_id:', updateReviewerError);
       return res.status(500).json({ error: 'Failed to update reviewer' });
     }
 
@@ -263,7 +237,6 @@ router.post('/reviews/:id/approve', authenticateToken, requireQuality, async (re
       });
 
     if (approvalError) {
-      console.error('Quality approve error:', approvalError);
       return res.status(500).json({ error: 'Failed to approve lead: ' + approvalError.message });
     }
 
@@ -287,7 +260,7 @@ router.post('/reviews/:id/approve', authenticateToken, requireQuality, async (re
       .single();
 
     if (leadError) {
-      console.error('Error fetching lead details for Telegram:', leadError);
+      // Игнорируем ошибки получения данных лида
     }
 
     // Получаем информацию о том, кто проверил (ОКК)
@@ -298,7 +271,7 @@ router.post('/reviews/:id/approve', authenticateToken, requireQuality, async (re
       .single();
 
     if (qcError) {
-      console.error('Error fetching QC user details for Telegram:', qcError);
+      // Игнорируем ошибки получения данных ОКК
     }
 
     // Формируем сообщение для Telegram
@@ -328,7 +301,6 @@ ${qcComment}`;
 
     // Разблокируем заявку после одобрения
     reviewLocks.delete(id);
-    console.log(`🔓 Заявка ${id} разблокирована после одобрения`);
 
     res.json({ 
       success: true, 
@@ -338,7 +310,6 @@ ${qcComment}`;
       project: approvalResult.project
     });
   } catch (error) {
-    console.error('Quality approve exception:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -357,7 +328,6 @@ router.post('/reviews/:id/reject', authenticateToken, requireQuality, async (req
       .single();
 
     if (reviewError || !reviewData) {
-      console.error('Review not found:', reviewError);
       return res.status(404).json({ error: 'Review not found' });
     }
 
@@ -368,7 +338,6 @@ router.post('/reviews/:id/reject', authenticateToken, requireQuality, async (req
       .eq('id', id);
     
     if (updateReviewerError) {
-      console.error('Error updating reviewer_id:', updateReviewerError);
       return res.status(500).json({ error: 'Failed to update reviewer' });
     }
 
@@ -380,7 +349,6 @@ router.post('/reviews/:id/reject', authenticateToken, requireQuality, async (req
       });
 
     if (rejectionError) {
-      console.error('Quality reject error:', rejectionError);
       return res.status(500).json({ error: 'Failed to reject lead: ' + rejectionError.message });
     }
 
@@ -390,14 +358,12 @@ router.post('/reviews/:id/reject', authenticateToken, requireQuality, async (req
 
     // Разблокируем заявку после отклонения
     reviewLocks.delete(id);
-    console.log(`🔓 Заявка ${id} разблокирована после отклонения`);
 
     res.json({ 
       success: true, 
       message: 'Lead rejected successfully'
     });
   } catch (error) {
-    console.error('Quality reject exception:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -415,7 +381,6 @@ setInterval(() => {
   for (const [reviewId, lock] of reviewLocks.entries()) {
     if (lock.lockedAt < fourHoursAgo) {
       reviewLocks.delete(reviewId);
-      console.log(`🧹 Автоматически разблокирована заявка ${reviewId} (старше 4 часов)`);
     }
   }
 }, 30 * 60 * 1000); // Проверяем каждые 30 минут
@@ -428,7 +393,6 @@ function cleanupOldLocks() {
   for (const [reviewId, lock] of reviewLocks.entries()) {
     if (lock.lockedAt < twoHoursAgo) {
       reviewLocks.delete(reviewId);
-      console.log(`🧹 Очищена старая блокировка заявки ${reviewId}`);
     }
   }
 }
@@ -440,21 +404,16 @@ router.post('/reviews/:id/lock', authenticateToken, requireQuality, async (req, 
     const userId = req.user.id;
     const userName = req.user.name || 'Неизвестный оператор';
     
-    console.log(`🔒 Попытка блокировки заявки ${id} пользователем ${userName} (${userId})`);
-    console.log(`📊 Текущее состояние блокировок:`, Array.from(reviewLocks.entries()));
     
     // Проверяем, не заблокирована ли уже заявка другим оператором
     if (reviewLocks.has(id)) {
       const existingLock = reviewLocks.get(id);
-      console.log(`🔍 Найдена существующая блокировка:`, existingLock);
       if (existingLock.userId !== userId) {
-        console.log(`❌ Заявка ${id} уже заблокирована оператором ${existingLock.userName} (${existingLock.userId})`);
         return res.status(409).json({ 
           error: 'Review is already locked by another operator',
           locked_by_name: existingLock.userName
         });
       }
-      console.log(`✅ Заявка ${id} уже заблокирована текущим пользователем, обновляем время`);
     }
     
     // Блокируем заявку
@@ -464,7 +423,6 @@ router.post('/reviews/:id/lock', authenticateToken, requireQuality, async (req, 
       lockedAt: Date.now()
     });
     
-    console.log(`✅ Заявка ${id} успешно заблокирована пользователем ${userName}`);
     
     // Отправляем уведомление другим операторам
     broadcastToOthers(userId, {
@@ -480,7 +438,6 @@ router.post('/reviews/:id/lock', authenticateToken, requireQuality, async (req, 
       locked_at: new Date().toISOString()
     });
   } catch (error) {
-    console.error('Lock review error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -492,24 +449,20 @@ router.post('/reviews/:id/unlock', authenticateToken, requireQuality, async (req
     const userId = req.user.id;
     const userName = req.user.name || 'Неизвестный оператор';
     
-    console.log(`🔓 Попытка разблокировки заявки ${id} пользователем ${userName} (${userId})`);
     
     // Проверяем, что заявка заблокирована текущим пользователем
     if (!reviewLocks.has(id)) {
-      console.log(`❌ Заявка ${id} не заблокирована`);
       return res.status(404).json({ error: 'Review is not locked' });
     }
     
     const lock = reviewLocks.get(id);
     if (lock.userId !== userId) {
-      console.log(`❌ Заявка ${id} заблокирована другим оператором`);
       return res.status(403).json({ error: 'Review is not locked by you' });
     }
     
     // Разблокируем заявку
     reviewLocks.delete(id);
     
-    console.log(`✅ Заявка ${id} успешно разблокирована пользователем ${userName}`);
     
     // Отправляем уведомление другим операторам
     broadcastToOthers(userId, {
@@ -524,7 +477,6 @@ router.post('/reviews/:id/unlock', authenticateToken, requireQuality, async (req
       message: 'Review unlocked successfully'
     });
   } catch (error) {
-    console.error('Unlock review error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -543,7 +495,6 @@ router.get('/reviews/locks', authenticateToken, requireQuality, async (req, res)
     
     res.json({ locks });
   } catch (error) {
-    console.error('Get locks error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -599,7 +550,6 @@ router.get('/reviews/:id', authenticateToken, requireQuality, async (req, res) =
 
     res.json(reviewWithLock);
   } catch (error) {
-    console.error('Get review by ID error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -619,7 +569,6 @@ router.get('/next-review', authenticateToken, requireQuality, async (req, res) =
       .single();
 
     if (statusError && statusError.code !== 'PGRST116') {
-      console.error('Get operator status error:', statusError);
       return res.status(500).json({ error: 'Database error' });
     }
 
@@ -659,7 +608,6 @@ router.get('/next-review', authenticateToken, requireQuality, async (req, res) =
         .single();
 
       if (operatorError && operatorError.code !== 'PGRST116') {
-        console.error('Get operator status error:', operatorError);
         return res.status(500).json({ error: 'Database error' });
       }
 
@@ -680,7 +628,6 @@ router.get('/next-review', authenticateToken, requireQuality, async (req, res) =
         .limit(1);
 
       if (reviewsError) {
-        console.error('Get available reviews error:', reviewsError);
         return res.status(500).json({ error: 'Database error' });
       }
 
@@ -700,7 +647,6 @@ router.get('/next-review', authenticateToken, requireQuality, async (req, res) =
         .eq('id', reviewId);
 
       if (assignError) {
-        console.error('Assign review error:', assignError);
         return res.status(500).json({ error: 'Failed to assign review' });
       }
 
@@ -718,7 +664,6 @@ router.get('/next-review', authenticateToken, requireQuality, async (req, res) =
         });
 
       if (updateStatusError) {
-        console.error('Update operator status error:', updateStatusError);
         // Не возвращаем ошибку, так как заявка уже назначена
       }
     }
@@ -743,7 +688,6 @@ router.get('/next-review', authenticateToken, requireQuality, async (req, res) =
       .single();
 
     if (reviewDataError) {
-      console.error('Get review data error:', reviewDataError);
       return res.status(500).json({ error: 'Failed to get review data' });
     }
 
@@ -753,7 +697,6 @@ router.get('/next-review', authenticateToken, requireQuality, async (req, res) =
     });
 
   } catch (error) {
-    console.error('Get next QC review error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -774,14 +717,12 @@ router.post('/release-operator', authenticateToken, requireQuality, async (req, 
       .eq('operator_id', operatorId);
 
     if (error) {
-      console.error('Release QC operator error:', error);
       return res.status(500).json({ error: 'Database error' });
     }
 
     res.json({ success: true });
 
   } catch (error) {
-    console.error('Release QC operator error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -789,6 +730,7 @@ router.post('/release-operator', authenticateToken, requireQuality, async (req, 
 // Получить статистику очереди ОКК
 router.get('/queue-stats', authenticateToken, requireQuality, async (req, res) => {
   try {
+    
     // Получаем количество заявок в очереди
     const { count: pendingCount, error: pendingError } = await supabaseAdmin
       .from('quality_reviews')
@@ -796,7 +738,6 @@ router.get('/queue-stats', authenticateToken, requireQuality, async (req, res) =
       .eq('status', 'pending');
 
     if (pendingError) {
-      console.error('Get pending reviews count error:', pendingError);
       return res.status(500).json({ error: 'Database error' });
     }
 
@@ -807,7 +748,6 @@ router.get('/queue-stats', authenticateToken, requireQuality, async (req, res) =
       .eq('is_available', true);
 
     if (availableError) {
-      console.error('Get available operators count error:', availableError);
       return res.status(500).json({ error: 'Database error' });
     }
 
@@ -818,7 +758,6 @@ router.get('/queue-stats', authenticateToken, requireQuality, async (req, res) =
       .eq('is_available', false);
 
     if (busyError) {
-      console.error('Get busy operators count error:', busyError);
       return res.status(500).json({ error: 'Database error' });
     }
 
@@ -831,23 +770,24 @@ router.get('/queue-stats', authenticateToken, requireQuality, async (req, res) =
       .limit(1);
 
     if (oldestError) {
-      console.error('Get oldest review error:', oldestError);
       return res.status(500).json({ error: 'Database error' });
     }
 
     // Вычисляем общее количество операторов на смене
     const totalOperatorsOnShift = (availableCount || 0) + (busyCount || 0);
 
-    res.json({
+    const result = {
       total_pending: pendingCount || 0,
       total_available_operators: availableCount || 0,
       total_busy_operators: busyCount || 0,
       total_operators_on_shift: totalOperatorsOnShift,
       oldest_pending_review: oldestReview?.[0]?.created_at || null
-    });
+    };
+
+
+    res.json(result);
 
   } catch (error) {
-    console.error('Get QC queue stats error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -857,7 +797,6 @@ router.post('/remove-operator', authenticateToken, requireQuality, async (req, r
   try {
     const userId = req.user.id;
     
-    console.log(`🗑️ Удаляем оператора ${userId} из очереди ОКК`);
     
     // Удаляем запись из qc_operator_status
     const { error } = await supabaseAdmin
@@ -866,15 +805,12 @@ router.post('/remove-operator', authenticateToken, requireQuality, async (req, r
       .eq('operator_id', userId);
     
     if (error) {
-      console.error('Remove operator error:', error);
       return res.status(500).json({ error: 'Database error' });
     }
     
-    console.log(`✅ Оператор ${userId} удален из очереди ОКК`);
     res.json({ success: true, message: 'Оператор удален из очереди' });
     
   } catch (error) {
-    console.error('Remove operator exception:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -900,7 +836,6 @@ router.get('/notifications', (req, res) => {
   // Проверяем токен из query параметра
   const token = req.query.token;
   if (!token) {
-    console.log('❌ SSE: Токен не предоставлен');
     return res.status(401).json({ error: 'Token required' });
   }
   
@@ -909,11 +844,9 @@ router.get('/notifications', (req, res) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const userId = decoded.userId;
     
-    console.log(`🔍 SSE: Валидация токена для пользователя ${userId}, роль: ${decoded.role}`);
     
     // Проверяем роль пользователя
     if (decoded.role !== 'quality' && decoded.role !== 'admin') {
-      console.log(`❌ SSE: Недостаточно прав для пользователя ${userId}, роль: ${decoded.role}`);
       return res.status(403).json({ error: 'Insufficient permissions' });
     }
   
@@ -937,32 +870,21 @@ router.get('/notifications', (req, res) => {
     // Обработка закрытия соединения
     req.on('close', () => {
       activeConnections.delete(userId);
-      console.log(`🔌 SSE соединение закрыто для пользователя ${userId}`);
     });
-    
-    console.log(`🔌 SSE соединение установлено для пользователя ${userId}`);
   } catch (error) {
-    console.error('SSE authentication error:', error);
     res.status(401).json({ error: 'Invalid token' });
   }
 });
 
 // Функция для отправки уведомления всем операторам кроме указанного
 function broadcastToOthers(excludeUserId, data) {
-  console.log(`📡 Отправляем уведомление всем кроме ${excludeUserId}:`, data);
-  console.log(`📊 Активных соединений: ${activeConnections.size}`);
-  
   for (const [userId, res] of activeConnections.entries()) {
     if (userId !== excludeUserId) {
       try {
         res.write(`data: ${JSON.stringify(data)}\n\n`);
-        console.log(`✅ Уведомление отправлено пользователю ${userId}`);
       } catch (error) {
-        console.error(`❌ Ошибка отправки SSE пользователю ${userId}:`, error);
         activeConnections.delete(userId);
       }
-    } else {
-      console.log(`⏭️ Пропускаем пользователя ${userId} (инициатор действия)`);
     }
   }
 }
@@ -980,7 +902,6 @@ router.get('/overview', authenticateToken, requireQuality, async (req, res) => {
       .eq('reviewer_id', req.user.id);
 
     if (prErr) {
-      console.error('Quality overview fetch error:', prErr);
       return res.status(500).json({ error: 'Failed to fetch overview' });
     }
 
@@ -1001,21 +922,32 @@ router.get('/overview', authenticateToken, requireQuality, async (req, res) => {
         .filter(t => (t.description || '').toLowerCase().includes('проверка лида'))
         .reduce((sum, t) => sum + parseFloat(t.amount || 0), 0);
       
-      // Заработок за сегодня (по МСК)
-      const today = new Date();
-      const mskOffset = 3 * 60; // UTC+3 в минутах
-      const mskToday = new Date(today.getTime() + (mskOffset * 60 * 1000));
-      const startOfDay = new Date(mskToday.getFullYear(), mskToday.getMonth(), mskToday.getDate());
-      const endOfDay = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000);
+      // Заработок за сегодня (по МСК) - упрощенная версия
+      const now = new Date();
+      
+      // Получаем текущую дату в МСК
+      const mskNow = new Date(now.toLocaleString("en-US", {timeZone: "Europe/Moscow"}));
+      
+      // Начало и конец дня в МСК
+      const startOfDay = new Date(mskNow.getFullYear(), mskNow.getMonth(), mskNow.getDate());
+      const endOfDay = new Date(mskNow.getFullYear(), mskNow.getMonth(), mskNow.getDate(), 23, 59, 59, 999);
+      
+      // Конвертируем в UTC для сравнения с базой данных
+      const startOfDayUTC = new Date(startOfDay.toLocaleString("en-US", {timeZone: "UTC"}));
+      const endOfDayUTC = new Date(endOfDay.toLocaleString("en-US", {timeZone: "UTC"}));
+      
       
       earningsToday = tx
         .filter(t => {
           const tDate = new Date(t.created_at);
-          const tMskDate = new Date(tDate.getTime() + (mskOffset * 60 * 1000));
-          return tMskDate >= startOfDay && tMskDate < endOfDay && 
-                 (t.description || '').toLowerCase().includes('проверка лида');
+          const isInRange = tDate >= startOfDayUTC && tDate <= endOfDayUTC;
+          const isQuality = (t.description || '').toLowerCase().includes('проверка лида');
+          
+          
+          return isInRange && isQuality;
         })
         .reduce((sum, t) => sum + parseFloat(t.amount || 0), 0);
+        
     } else {
       earnings = processed * 25;
       earningsToday = 0; // Если нет транзакций, то и за сегодня 0
@@ -1053,7 +985,6 @@ router.get('/overview', authenticateToken, requireQuality, async (req, res) => {
 
     res.json({ processed, approved, conversion_rate, earnings, earningsToday, avg_review_minutes, avg_pending_wait_minutes });
   } catch (e) {
-    console.error('Quality overview exception:', e);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -1065,13 +996,42 @@ router.get('/projects', authenticateToken, requireQuality, async (req, res) => {
       .rpc('get_projects_with_prices');
 
     if (error) {
-      console.error('Error fetching projects with prices:', error);
       return res.status(500).json({ error: 'Failed to fetch projects' });
     }
 
     res.json(data || []);
   } catch (error) {
-    console.error('Exception fetching projects with prices:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Добавить оператора в очередь ОКК
+router.post('/add-operator', authenticateToken, requireQuality, async (req, res) => {
+  try {
+    const operatorId = req.user.id;
+    
+    
+    // Добавляем или обновляем запись оператора в очереди
+    const { data, error } = await supabaseAdmin
+      .from('qc_operator_status')
+      .upsert({
+        operator_id: operatorId,
+        is_available: true,
+        current_review_id: null,
+        last_activity: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      }, {
+        onConflict: 'operator_id'
+      })
+      .select();
+    
+    if (error) {
+      return res.status(500).json({ error: 'Database error' });
+    }
+
+    res.json({ success: true, message: 'Оператор добавлен в очередь' });
+    
+  } catch (error) {
     res.status(500).json({ error: 'Internal server error' });
   }
 });

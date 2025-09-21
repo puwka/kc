@@ -2,7 +2,14 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="theme-color" content="#007bff">
   <title>Проверка лида - ОКК</title>
   <link rel="stylesheet" href="css/style.css">
   <link rel="stylesheet" href="css/call.css">
@@ -35,67 +42,248 @@
       padding: 10px 20px;
       font-weight: 600;
       font-size: 14px;
-      cursor: pointer;
-      transition: all 0.2s ease;
+      cursor: default;
       white-space: nowrap;
       user-select: none;
       background: none;
       border: none;
     }
 
-    .user-name:hover {
-      color: #f8f9fa;
-      text-decoration: underline;
+
+    /* Мобильная адаптивность для страницы проверки */
+    @media (max-width: 768px) {
+      .call-container {
+        margin-top: 100px;
+        padding: 16px;
+      }
+      
+      .call-header {
+        flex-direction: column;
+        gap: 12px;
+        align-items: flex-start;
+      }
+      
+      .call-header h1 {
+        font-size: 20px;
+        margin-bottom: 8px;
+      }
+      
+      .back-btn {
+        padding: 8px 16px;
+        font-size: 14px;
+        border-radius: 8px;
+      }
+      
+      .call-info {
+        grid-template-columns: 1fr;
+        gap: 12px;
+        margin-bottom: 20px;
+      }
+      
+      .info-item {
+        padding: 12px;
+        border-radius: 8px;
+      }
+      
+      .info-label {
+        font-size: 12px;
+        margin-bottom: 4px;
+      }
+      
+      .info-value {
+        font-size: 14px;
+        font-weight: 600;
+      }
+      
+      .call-section {
+        margin-bottom: 20px;
+        padding: 16px;
+        border-radius: 12px;
+      }
+      
+      .call-section h3 {
+        font-size: 16px;
+        margin-bottom: 12px;
+      }
+      
+      .audio-section {
+        margin-bottom: 16px;
+      }
+      
+      .audio-player {
+        width: 100%;
+        margin-bottom: 12px;
+      }
+      
+      .script-section {
+        margin-bottom: 16px;
+      }
+      
+      .script-content {
+        padding: 12px;
+        border-radius: 8px;
+        font-size: 13px;
+        line-height: 1.4;
+      }
+      
+      .script-content pre {
+        white-space: pre-wrap;
+        word-wrap: break-word;
+        font-size: 13px;
+        line-height: 1.4;
+      }
+      
+      .comment-section {
+        margin-bottom: 16px;
+        padding: 12px;
+        border-radius: 8px;
+      }
+      
+      .comment-section h4 {
+        font-size: 14px;
+        margin-bottom: 8px;
+      }
+      
+      .comment-text {
+        font-size: 13px;
+        line-height: 1.4;
+        padding: 8px;
+        border-radius: 6px;
+        min-height: 60px;
+      }
+      
+      .comment-actions {
+        margin-top: 8px;
+        gap: 8px;
+      }
+      
+      .comment-btn {
+        padding: 6px 12px;
+        font-size: 12px;
+        border-radius: 6px;
+      }
+      
+      .status-section {
+        margin-bottom: 20px;
+        padding: 16px;
+        border-radius: 12px;
+      }
+      
+      .status-section h3 {
+        font-size: 16px;
+        margin-bottom: 12px;
+      }
+      
+      .status-actions {
+        flex-direction: column;
+        gap: 12px;
+      }
+      
+      .status-btn {
+        padding: 12px 20px;
+        font-size: 14px;
+        border-radius: 8px;
+        min-height: 44px;
+      }
+      
+      .status-btn.approve {
+        background: #28a745;
+      }
+      
+      .status-btn.reject {
+        background: #dc3545;
+      }
+      
+      .status-btn:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+      }
+    }
+    
+    @media (max-width: 480px) {
+      .call-container {
+        margin-top: 90px;
+        padding: 12px;
+      }
+      
+      .call-header h1 {
+        font-size: 18px;
+      }
+      
+      .back-btn {
+        padding: 6px 12px;
+        font-size: 13px;
+      }
+      
+      .call-info {
+        gap: 8px;
+        margin-bottom: 16px;
+      }
+      
+      .info-item {
+        padding: 10px;
+      }
+      
+      .info-label {
+        font-size: 11px;
+      }
+      
+      .info-value {
+        font-size: 13px;
+      }
+      
+      .call-section {
+        padding: 12px;
+        margin-bottom: 16px;
+      }
+      
+      .call-section h3 {
+        font-size: 14px;
+        margin-bottom: 10px;
+      }
+      
+      .script-content {
+        padding: 10px;
+        font-size: 12px;
+      }
+      
+      .script-content pre {
+        font-size: 12px;
+      }
+      
+      .comment-section {
+        padding: 10px;
+      }
+      
+      .comment-section h4 {
+        font-size: 13px;
+      }
+      
+      .comment-text {
+        font-size: 12px;
+        min-height: 50px;
+      }
+      
+      .comment-btn {
+        padding: 5px 10px;
+        font-size: 11px;
+      }
+      
+      .status-section {
+        padding: 12px;
+      }
+      
+      .status-section h3 {
+        font-size: 14px;
+      }
+      
+      .status-btn {
+        padding: 10px 16px;
+        font-size: 13px;
+        min-height: 40px;
+      }
     }
 
-    .user-dropdown {
-      position: absolute;
-      top: 100%;
-      right: 0;
-      background: white;
-      border-radius: 12px;
-      box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
-      border: 1px solid #e9ecef;
-      min-width: 140px;
-      z-index: 9999;
-      overflow: hidden;
-      margin-top: 8px;
-      display: none;
-    }
-
-    .user-dropdown.show {
-      display: block;
-    }
-
-    .dropdown-item {
-      display: block;
-      padding: 12px 16px;
-      color: #495057;
-      text-decoration: none;
-      font-size: 14px;
-      font-weight: 500;
-      transition: background-color 0.2s ease;
-      border: none;
-      background: none;
-      width: 100%;
-      text-align: left;
-      cursor: pointer;
-    }
-
-    .dropdown-item:hover {
-      background-color: #f8f9fa;
-      color: #212529;
-    }
-
-    .dropdown-item.logout-btn {
-      color: #dc3545;
-      border-top: 1px solid #e9ecef;
-    }
-
-    .dropdown-item.logout-btn:hover {
-      background-color: #f8d7da;
-      color: #721c24;
-    }
   </style>
 </head>
 <body>
@@ -106,13 +294,7 @@
       </div>
       <div class="user-info">
         <div class="user-earnings" id="userEarnings">0.00 ₽</div>
-        <div class="user-menu">
-          <div class="user-name" id="userName">Загрузка...</div>
-          <div class="user-dropdown" id="userDropdown" style="display: none;">
-            <a href="/quality.html" class="dropdown-item">К очереди</a>
-            <button id="logoutBtn" class="dropdown-item logout-btn">Выйти</button>
-          </div>
-        </div>
+        <div class="user-name" id="userName">Загрузка...</div>
       </div>
     </div>
   </header>
@@ -174,6 +356,6 @@
 
   <div id="notifications" class="notifications"></div>
 
-  <script src="js/quality-review.js"></script>
+  <script src="js/quality-review.js?v=2025-09-21-20-60"></script>
 </body>
 </html>

@@ -1,81 +1,92 @@
+// ====== Глобальные переменные ======
 let reviewId = null;
 let currentUser = null;
 let currentLeadId = null;
+let isInitialized = false;
+let isUnlocked = false;
 
-document.addEventListener('DOMContentLoaded', () => {
-    init();
-});
+// ====== Инициализация ======
 
 async function init() {
+  if (isInitialized) {
+    return;
+  }
+    
     try {
+        // Получаем ID проверки из URL
         const params = new URLSearchParams(location.search);
         reviewId = params.get('id');
         
         if (!reviewId) {
-            alert('Не указан id проверки');
-            location.href = '/quality.html';
+            notify('Не указан ID проверки', 'error');
+            setTimeout(() => location.href = '/quality.html', 2000);
             return;
         }
 
+        // Проверяем токен авторизации
         const token = localStorage.getItem('token');
         if (!token) {
             location.href = '/login.html';
             return;
         }
 
-        await loadMe(token);
-        await loadReview();
-        bindEvents();
+        // Загружаем данные пользователя и заявки
+        await Promise.all([
+            loadMe(token),
+            loadReview()
+        ]);
+        
+        // Настраиваем интерфейс
         loadUserEarnings();
+        initMobileOptimizations();
         
-        // Настройка меню после загрузки всех данных
+        // Добавляем задержку для bindEvents, чтобы элементы успели загрузиться
         setTimeout(() => {
-            setupUserMenu();
-        }, 500);
+            bindEvents();
+        }, 100);
         
-        // Дополнительная инициализация через 2 секунды для надежности
-        setTimeout(() => {
-            console.log('🔄 Дополнительная инициализация меню...');
-            setupUserMenu();
-        }, 2000);
+        // Настраиваем автоматическую разблокировку
+        setupAutoUnlock();
         
-        // Автоматическая разблокировка при закрытии страницы
-        let isUnlocked = false;
+        isInitialized = true;
         
-        const unlockReview = () => {
-            if (reviewId && !isUnlocked) {
-                isUnlocked = true;
-                // Отправляем запрос на разблокировку (не ждем ответа)
-                fetch(`/api/quality/reviews/${reviewId}/unlock`, {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${localStorage.getItem('token')}`,
-                        'Content-Type': 'application/json'
-                    }
-                }).then(() => {
-                    // Принудительно обновляем список заявок на главной странице
-                    if (window.opener && window.opener.loadReviews) {
-                        window.opener.loadReviews();
-                    }
-                }).catch(() => {}); // Игнорируем ошибки
-            }
-        };
-        
-        // Несколько способов разблокировки для надежности
-        window.addEventListener('beforeunload', unlockReview);
-        window.addEventListener('unload', unlockReview);
-        document.addEventListener('visibilitychange', () => {
-            if (document.hidden) {
-                unlockReview();
-            }
-        });
-        
-        // Разблокировка при клике на кнопку "Назад" или закрытии вкладки
-        window.addEventListener('pagehide', unlockReview);
-    } catch (e) {
-        notify('Ошибка загрузки страницы', 'error');
+    } catch (error) {
+        notify('Ошибка загрузки страницы проверки', 'error');
     }
 }
+
+function setupAutoUnlock() {
+    // Автоматическая разблокировка при закрытии страницы
+    const unlockReview = () => {
+        if (reviewId && !isUnlocked) {
+            isUnlocked = true;
+            // Отправляем запрос на разблокировку (не ждем ответа)
+            fetch(`/api/quality/reviews/${reviewId}/unlock`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                    'Content-Type': 'application/json'
+                }
+            }).catch(error => {
+                // Игнорируем ошибки разблокировки
+            });
+        }
+    };
+    
+    // Обработчики для разблокировки
+    window.addEventListener('beforeunload', unlockReview);
+    window.addEventListener('unload', unlockReview);
+    
+    // Обработчик для мобильных устройств
+    document.addEventListener('visibilitychange', () => {
+        if (document.hidden) {
+            unlockReview();
+        }
+    });
+}
+
+// Инициализация при загрузке DOM
+document.addEventListener('DOMContentLoaded', init);
 
 async function loadMe(token) {
     const resp = await fetch('/api/auth/me', {
@@ -96,73 +107,93 @@ async function loadMe(token) {
 async function loadReview() {
     showLoader();
     try {
+        const token = localStorage.getItem('token');
+        if (!token) {
+            throw new Error('Токен авторизации не найден');
+        }
+
         const resp = await fetch(`/api/quality/reviews/${reviewId}`, {
             headers: {
-                'Authorization': `Bearer ${localStorage.getItem('token')}`
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
             }
         });
         
         if (!resp.ok) {
             if (resp.status === 404) {
                 notify('Заявка не найдена или уже обработана', 'warning');
-                location.href = '/quality.html';
+                setTimeout(() => location.href = '/quality.html', 2000);
                 return;
             }
-            throw new Error(`HTTP ${resp.status}: ${resp.statusText}`);
+            const errorData = await resp.json().catch(() => ({}));
+            throw new Error(errorData.error || `HTTP ${resp.status}: ${resp.statusText}`);
         }
         
         const review = await resp.json();
+        if (!review) {
+            throw new Error('Пустой ответ сервера');
+        }
+        
         renderLead(review);
     } catch (error) {
-        console.error('Error loading review:', error);
-        notify('Ошибка загрузки страницы', 'error');
+        notify(error.message || 'Ошибка загрузки страницы', 'error');
     } finally {
         hideLoader();
     }
 }
 
 function renderLead(r) {
-    console.log('🎯 renderLead вызвана с данными:', r);
+    if (!r || typeof r !== 'object') {
+        return;
+    }
     
     const lead = r.leads || {};
     currentLeadId = r.lead_id; // Сохраняем ID лида
     
-    console.log('📋 Данные лида для отображения:', lead);
-    console.log('📋 ID лида:', currentLeadId);
-    
     const details = document.getElementById('leadDetails');
+    if (!details) {
+        return;
+    }
     
-    details.innerHTML = `
+    // Безопасное извлечение данных
+    const leadName = lead.name || '-';
+    const leadPhone = lead.phone || '-';
+    const leadId = r.lead_id || '-';
+    const projectName = lead.project || '-';
+    const status = lead.status || '-';
+    const createdAt = lead.created_at ? new Date(lead.created_at).toLocaleString('ru-RU') : '-';
+    
+    // Создаем HTML с защитой от XSS
+    const safeHTML = `
         <div class="detail-item">
             <div class="detail-label">Имя:</div>
-            <div class="detail-value">${lead.name || '-'}</div>
+            <div class="detail-value">${leadName}</div>
         </div>
         <div class="detail-item phone">
             <div class="detail-label">Телефон:</div>
-            <div class="detail-value">${lead.phone || '-'}</div>
+            <div class="detail-value">${leadPhone}</div>
         </div>
         <div class="detail-item">
             <div class="detail-label">ID лида:</div>
-            <div class="detail-value">${r.lead_id}</div>
+            <div class="detail-value">${leadId}</div>
         </div>
         <div class="detail-item">
             <div class="detail-label">Проект:</div>
-            <div class="detail-value">${lead.project || '-'}</div>
+            <div class="detail-value">${projectName}</div>
         </div>
         <div class="detail-item">
             <div class="detail-label">Статус:</div>
-            <div class="detail-value">${lead.status || '-'}</div>
+            <div class="detail-value">${status}</div>
         </div>
         <div class="detail-item">
             <div class="detail-label">Дата создания:</div>
-            <div class="detail-value">${lead.created_at ? new Date(lead.created_at).toLocaleString('ru-RU') : '-'}</div>
+            <div class="detail-value">${createdAt}</div>
         </div>
     `;
     
-    console.log('✅ Детали лида отображены');
+    details.innerHTML = safeHTML;
     
     // Заполняем комментарий оператора
-    console.log('🔄 Вызываем fillOperatorComment...');
     fillOperatorComment(lead);
     
     loadScriptForLead(lead);
@@ -170,19 +201,16 @@ function renderLead(r) {
 }
 
 function fillOperatorComment(lead) {
-    console.log('📝 Заполнение комментария оператора...');
-    console.log('📋 Данные лида:', lead);
-    console.log('📋 Комментарий лида:', lead.comment);
-    console.log('📋 Тип комментария:', typeof lead.comment);
-    console.log('📋 Комментарий пустой?', !lead.comment);
+    // Предотвращаем множественные вызовы
+    if (isFillingComment) {
+        return;
+    }
+    
+    isFillingComment = true;
     
     // Заполняем существующую секцию комментария оператора
     const textarea = document.getElementById('operatorCommentText');
     const editBtn = document.getElementById('editOperatorCommentBtn');
-    
-    console.log('🔍 Поиск элементов:');
-    console.log('  - textarea:', !!textarea);
-    console.log('  - editBtn:', !!editBtn);
     
     if (textarea) {
         const commentText = lead.comment || 'Комментарий не добавлен';
@@ -190,17 +218,6 @@ function fillOperatorComment(lead) {
         textarea.readOnly = true; // Устанавливаем режим только для чтения
         textarea.style.backgroundColor = '#f8f9fa';
         textarea.style.border = '1px solid #dee2e6';
-        console.log('✅ Комментарий оператора заполнен:', commentText);
-        console.log('✅ Значение textarea после заполнения:', textarea.value);
-        console.log('✅ textarea.readOnly:', textarea.readOnly);
-    } else {
-        console.log('❌ textarea для комментария оператора не найден');
-        console.log('❌ Попробуем найти все textarea на странице:');
-        const allTextareas = document.querySelectorAll('textarea');
-        console.log('📋 Найдено textarea элементов:', allTextareas.length);
-        allTextareas.forEach((el, index) => {
-            console.log(`  ${index}: id="${el.id}", placeholder="${el.placeholder}"`);
-        });
     }
     
     // Добавляем обработчик для кнопки редактирования
@@ -215,36 +232,30 @@ function fillOperatorComment(lead) {
         editBtn.className = 'btn btn-outline btn-sm';
         editBtn.disabled = false;
         
-        // Добавляем новый обработчик
+        // Добавляем обработчик для начального состояния
         editBtn.addEventListener('click', (e) => {
             e.preventDefault();
-            console.log('🖊️ Кнопка редактирования комментария нажата');
             toggleOperatorCommentEdit();
         });
-        console.log('✅ Обработчик кнопки редактирования добавлен');
-    } else {
-        console.log('❌ editBtn для комментария оператора не найден');
-        console.log('❌ Попробуем найти все кнопки на странице:');
-        const allButtons = document.querySelectorAll('button');
-        console.log('📋 Найдено button элементов:', allButtons.length);
-        allButtons.forEach((el, index) => {
-            console.log(`  ${index}: id="${el.id}", text="${el.textContent}"`);
-        });
     }
+    
+    // Сбрасываем флаг
+    isFillingComment = false;
 }
 
 function toggleOperatorCommentEdit() {
+    // Предотвращаем множественные вызовы
+    if (isTogglingEdit) {
+        return;
+    }
+    
+    isTogglingEdit = true;
+    
     const textarea = document.getElementById('operatorCommentText');
     const editBtn = document.getElementById('editOperatorCommentBtn');
     
-    console.log('🔄 Переключение режима редактирования комментария...');
-    console.log('📋 textarea:', textarea);
-    console.log('📋 editBtn:', editBtn);
-    console.log('📋 textarea.readOnly:', textarea.readOnly);
-    
     if (textarea.readOnly) {
         // Переключаем в режим редактирования
-        console.log('✏️ Переключаем в режим редактирования');
         textarea.readOnly = false;
         textarea.style.backgroundColor = '#fff';
         textarea.style.border = '1px solid #007bff';
@@ -263,7 +274,6 @@ function toggleOperatorCommentEdit() {
         // Добавляем обработчик сохранения
         editBtn.addEventListener('click', (e) => {
             e.preventDefault();
-            console.log('💾 Кнопка сохранения нажата');
             saveOperatorComment();
         });
         
@@ -271,15 +281,11 @@ function toggleOperatorCommentEdit() {
         textarea.addEventListener('keydown', (e) => {
             if (e.key === 'Enter' && e.ctrlKey) {
                 e.preventDefault();
-                console.log('💾 Ctrl+Enter нажато - сохраняем');
                 saveOperatorComment();
             }
         });
-        
-        console.log('✅ Обработчик сохранения добавлен');
     } else {
         // Возвращаем в режим просмотра
-        console.log('👁️ Переключаем в режим просмотра');
         textarea.readOnly = true;
         textarea.style.backgroundColor = '#f8f9fa';
         textarea.style.border = '1px solid #dee2e6';
@@ -297,33 +303,38 @@ function toggleOperatorCommentEdit() {
         // Добавляем обработчик редактирования
         editBtn.addEventListener('click', (e) => {
             e.preventDefault();
-            console.log('🖊️ Кнопка редактирования нажата');
             toggleOperatorCommentEdit();
         });
-        
-        console.log('✅ Обработчик редактирования добавлен');
     }
+    
+    // Сбрасываем флаг
+    isTogglingEdit = false;
 }
 
+// Флаги для предотвращения множественных вызовов
+let isSavingComment = false;
+let isTogglingEdit = false;
+let isFillingComment = false;
+let isSavingDecision = false;
+
 async function saveOperatorComment() {
+    // Предотвращаем множественные вызовы
+    if (isSavingComment) {
+        return;
+    }
+    
     try {
-        console.log('💾 Начинаем сохранение комментария оператора...');
+        isSavingComment = true;
         
         const commentTextarea = document.getElementById('operatorCommentText');
         const comment = commentTextarea.value;
         
-        console.log('📋 ID лида:', currentLeadId);
-        console.log('📝 Комментарий:', comment);
-        console.log('📝 Длина комментария:', comment.length);
-        
         if (!currentLeadId) {
-            console.error('❌ ID лида не найден');
             notify('Ошибка: ID лида не найден', 'error');
             return;
         }
         
         if (!comment || comment.trim() === '') {
-            console.warn('⚠️ Комментарий пустой');
             notify('Комментарий не может быть пустым', 'warning');
             return;
         }
@@ -332,13 +343,6 @@ async function saveOperatorComment() {
             comment: comment.trim()
         };
         
-        console.log('📤 Отправляем запрос:', {
-            url: `/api/quality/reviews/${reviewId}/operator-comment`,
-            method: 'PUT',
-            body: requestBody,
-            reviewId: reviewId,
-            leadId: currentLeadId
-        });
         
         // Показываем индикатор загрузки
         const editBtn = document.getElementById('editOperatorCommentBtn');
@@ -355,54 +359,58 @@ async function saveOperatorComment() {
             body: JSON.stringify(requestBody)
         });
         
-        console.log('📥 Ответ сервера:', {
-            status: resp.status,
-            statusText: resp.statusText,
-            ok: resp.ok
-        });
-        
         if (!resp.ok) {
             const errorText = await resp.text();
-            console.error('❌ Ошибка сервера:', errorText);
             throw new Error(`Ошибка сохранения комментария: ${resp.status} ${errorText}`);
         }
         
         const result = await resp.json();
-        console.log('✅ Комментарий сохранен успешно:', result);
         
         // Обновляем значение в textarea с сохраненным комментарием
         const savedComment = result.lead?.comment || result.comment || comment.trim();
         commentTextarea.value = savedComment;
-        console.log('🔄 Обновлено значение textarea:', commentTextarea.value);
         
         // Показываем уведомление об успешном сохранении
         notify('✅ Комментарий оператора успешно сохранен!', 'success');
         
-        // Возвращаем кнопку в исходное состояние
-        editBtn.textContent = originalText;
-        editBtn.disabled = false;
+        // Переключаем обратно в режим просмотра после сохранения
+        commentTextarea.readOnly = true;
+        commentTextarea.style.backgroundColor = '#f8f9fa';
+        commentTextarea.style.border = '1px solid #dee2e6';
         
-        // Переключаем в режим просмотра
-        toggleOperatorCommentEdit();
+        editBtn.textContent = 'Редактировать';
+        editBtn.className = 'btn btn-outline btn-sm';
+        editBtn.disabled = false;
+        editBtn.title = 'Нажмите для редактирования комментария оператора';
+        
+        // Удаляем все старые обработчики
+        editBtn.onclick = null;
+        editBtn.removeEventListener('click', toggleOperatorCommentEdit);
+        editBtn.removeEventListener('click', saveOperatorComment);
+        
+        // Добавляем обработчик редактирования
+        editBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            toggleOperatorCommentEdit();
+        });
         
     } catch (e) {
-        console.error('❌ Ошибка при сохранении комментария:', e);
         notify(`❌ Ошибка сохранения: ${e.message}`, 'error');
         
-        // Возвращаем кнопку в исходное состояние
+        // Возвращаем кнопку в режим сохранения при ошибке
         const editBtn = document.getElementById('editOperatorCommentBtn');
         editBtn.textContent = 'Сохранить';
+        editBtn.className = 'btn btn-primary btn-sm';
         editBtn.disabled = false;
+    } finally {
+        // Сбрасываем флаг
+        isSavingComment = false;
     }
 }
 
 async function loadScriptForLead(lead) {
     const box = document.getElementById('scriptContent');
     
-    console.log('📋 Загрузка скрипта для лида:', {
-        name: lead.name,
-        project: lead.project
-    });
     
     if (!lead.project) {
         box.innerHTML = `
@@ -426,11 +434,6 @@ async function loadScriptForLead(lead) {
         const projectName = encodeURIComponent(lead.project);
         const url = `/api/scripts/by-project/${projectName}`;
         
-        console.log('📤 Запрос скриптов:', {
-            project: lead.project,
-            encodedProject: projectName,
-            url: url
-        });
         
         const response = await fetch(url, {
             headers: {
@@ -443,7 +446,6 @@ async function loadScriptForLead(lead) {
         }
         
         const scripts = await response.json();
-        console.log('📋 Получены скрипты:', scripts);
         
         if (!scripts || scripts.length === 0) {
             box.innerHTML = `
@@ -478,10 +480,8 @@ async function loadScriptForLead(lead) {
         });
         
         box.innerHTML = scriptsHtml;
-        console.log('✅ Скрипты отображены успешно');
         
     } catch (error) {
-        console.error('❌ Ошибка загрузки скриптов:', error);
         box.innerHTML = `
             <div class="script-error">
                 <p>❌ Ошибка загрузки скриптов</p>
@@ -503,13 +503,26 @@ function loadAudioForLead(lead) {
 }
 
 function bindEvents() {
-    document.getElementById('logoutBtn').addEventListener('click', () => {
-        localStorage.clear();
-        location.href = '/login.html';
-    });
+    // Обработчик для кнопки выхода (если есть)
+    const logoutBtn = document.getElementById('logoutBtn');
+    if (logoutBtn) {
+        logoutBtn.addEventListener('click', () => {
+            localStorage.clear();
+            location.href = '/login.html';
+        });
+    }
     
-    document.getElementById('approveBtn').addEventListener('click', () => saveDecision('approve'));
-    document.getElementById('rejectBtn').addEventListener('click', () => saveDecision('reject'));
+    // Обработчики для кнопок решения ОКК
+    const approveBtn = document.getElementById('approveBtn');
+    const rejectBtn = document.getElementById('rejectBtn');
+    
+    if (approveBtn) {
+        approveBtn.addEventListener('click', () => saveDecision('approve'));
+    }
+    
+    if (rejectBtn) {
+        rejectBtn.addEventListener('click', () => saveDecision('reject'));
+    }
     
     // Обработчик для кнопки "К списку"
     const backButton = document.querySelector('a[href="/quality.html"]');
@@ -541,9 +554,16 @@ function bindEvents() {
 }
 
 async function saveDecision(action) {
+    // Предотвращаем множественные вызовы
+    if (isSavingDecision) {
+        return;
+    }
+    
     try {
+        isSavingDecision = true;
         showLoader();
         const comment = document.getElementById('commentText').value;
+        
         
         const url = action === 'approve' 
             ? `/api/quality/reviews/${reviewId}/approve`
@@ -583,6 +603,7 @@ async function saveDecision(action) {
         notify(e.message, 'error');
     } finally {
         hideLoader();
+        isSavingDecision = false;
     }
 }
 
@@ -599,11 +620,8 @@ function hideLoader() {
 }
 
 function notify(message, type = 'info') {
-    console.log('🔔 Показываем уведомление:', { message, type });
-    
     const box = document.getElementById('notifications');
     if (!box) {
-        console.error('❌ Контейнер уведомлений не найден');
         return;
     }
     
@@ -614,7 +632,6 @@ function notify(message, type = 'info') {
     el.style.opacity = '1';
     
     box.appendChild(el);
-    console.log('✅ Уведомление добавлено в DOM:', el);
     
     // Показываем уведомление на 5 секунд
     setTimeout(() => {
@@ -624,85 +641,12 @@ function notify(message, type = 'info') {
             setTimeout(() => {
                 if (el.parentNode) {
                     el.remove();
-                    console.log('🗑️ Уведомление удалено');
                 }
             }, 300);
         }
     }, 5000);
 }
 
-// Функция для настройки выпадающего меню
-function setupUserMenu() {
-  console.log('🔧 Настройка выпадающего меню...');
-  
-  const checkElements = () => {
-    const userName = document.getElementById('userName');
-    const userDropdown = document.getElementById('userDropdown');
-    
-    console.log('🔍 Поиск элементов:', { userName: !!userName, userDropdown: !!userDropdown });
-    
-    if (!userName || !userDropdown) {
-      console.log('⏳ Элементы не найдены, повтор через 100мс...');
-      setTimeout(checkElements, 100);
-      return;
-    }
-    
-    console.log('✅ Элементы найдены, настройка обработчиков...');
-    console.log('📋 Проверка элементов:', {
-      userName: userName,
-      userDropdown: userDropdown,
-      userNameText: userName.textContent,
-      userDropdownDisplay: userDropdown.style.display
-    });
-    
-    // Удаляем все старые обработчики
-    userName.onclick = null;
-    userName.onmousedown = null;
-    userName.onmouseup = null;
-    
-    // Добавляем обработчик клика
-    userName.onclick = function(e) {
-      console.log('👆 Клик по имени пользователя');
-      e.preventDefault();
-      e.stopPropagation();
-      
-      const currentDisplay = userDropdown.style.display;
-      console.log('📊 Текущий display:', currentDisplay);
-      
-      if (currentDisplay === 'block' || currentDisplay === '') {
-        userDropdown.style.display = 'none';
-        console.log('❌ Меню скрыто');
-      } else {
-        userDropdown.style.display = 'block';
-        console.log('✅ Меню показано');
-      }
-    };
-    
-    // Обработчик для кнопки выхода
-    const logoutBtn = document.getElementById('logoutBtn');
-    if (logoutBtn) {
-      logoutBtn.onclick = function(e) {
-        console.log('🚪 Выход из системы');
-        e.preventDefault();
-        e.stopPropagation();
-        localStorage.clear();
-        window.location.href = '/login.html';
-      };
-    }
-    
-    // Закрытие при клике вне
-    document.onclick = function(e) {
-      if (!userName.contains(e.target) && !userDropdown.contains(e.target)) {
-        userDropdown.style.display = 'none';
-        console.log('👆 Клик вне меню, скрываем');
-      }
-    };
-    
-    console.log('🎉 Обработчики настроены успешно');
-  };
-  
-  checkElements();
-}
 
 // Функция для загрузки заработка пользователя
 async function loadUserEarnings() {
@@ -718,7 +662,7 @@ async function loadUserEarnings() {
     const data = await resp.json();
     updateHeaderEarnings(data.earnings || 0);
   } catch (e) {
-    console.error('Error loading user earnings:', e);
+    // Игнорируем ошибки загрузки заработка
   }
 }
 
@@ -746,3 +690,87 @@ window.testMenu = function() {
     console.error('Элементы не найдены!');
   }
 };
+
+// Мобильная оптимизация для страницы проверки заявки
+function initMobileOptimizations() {
+  // Отключаем зум при двойном тапе на кнопки
+  const buttons = document.querySelectorAll('button, .user-name, .dropdown-item, .back-btn');
+  buttons.forEach(button => {
+    button.addEventListener('touchstart', function(e) {
+      e.preventDefault();
+    }, { passive: false });
+  });
+  
+  // Улучшенная обработка touch событий для кнопок решений
+  const statusButtons = document.querySelectorAll('.status-btn, .comment-btn, .back-btn');
+  statusButtons.forEach(element => {
+    element.addEventListener('touchstart', function() {
+      this.style.transform = 'scale(0.98)';
+    });
+    
+    element.addEventListener('touchend', function() {
+      this.style.transform = 'scale(1)';
+    });
+    
+    element.addEventListener('touchcancel', function() {
+      this.style.transform = 'scale(1)';
+    });
+  });
+  
+  // Оптимизация прокрутки для длинных страниц
+  let isScrolling = false;
+  window.addEventListener('scroll', function() {
+    if (!isScrolling) {
+      window.requestAnimationFrame(function() {
+        isScrolling = false;
+      });
+      isScrolling = true;
+    }
+  }, { passive: true });
+  
+  // Улучшенная обработка форм на мобильных
+  const textareas = document.querySelectorAll('textarea, input');
+  textareas.forEach(textarea => {
+    textarea.addEventListener('focus', function() {
+      // Прокручиваем к элементу при фокусе на мобильных
+      setTimeout(() => {
+        this.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 300);
+    });
+  });
+  
+  // Предотвращение случайного закрытия при свайпе
+  let startY = 0;
+  window.addEventListener('touchstart', function(e) {
+    startY = e.touches[0].clientY;
+  }, { passive: true });
+  
+  window.addEventListener('touchmove', function(e) {
+    const currentY = e.touches[0].clientY;
+    const diffY = startY - currentY;
+    
+    // Если пользователь свайпает вверх и находится в самом верху страницы
+    if (diffY < 0 && window.scrollY === 0) {
+      e.preventDefault();
+    }
+  }, { passive: false });
+  
+  // Улучшенная обработка аудио на мобильных
+  const audio = document.getElementById('callAudio');
+  if (audio) {
+    audio.addEventListener('play', function() {
+      // Предотвращаем автоматическое воспроизведение на мобильных
+      if (this.paused) {
+        this.play().catch(e => {
+          console.log('Автовоспроизведение заблокировано:', e);
+        });
+      }
+    });
+  }
+  
+}
+
+// Инициализация
+document.addEventListener('DOMContentLoaded', function() {
+  init();
+});
