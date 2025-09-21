@@ -88,6 +88,7 @@ async function init(){
   
   loadReviews();
   setupStickyHeader();
+  setupSSE();
   
 // Автоматическое обновление списка заявок каждые 3 секунды
 setInterval(() => {
@@ -218,6 +219,9 @@ async function lockReview(reviewId) {
       locked_at: new Date().toISOString(),
       timestamp: Date.now()
     });
+    
+    // Мгновенно скрываем заявку у других операторов
+    hideReviewFromOthers(reviewId);
     
     // Принудительное обновление для синхронизации с другими пользователями
     setTimeout(() => {
@@ -453,6 +457,7 @@ function renderReviews(rows){
     
     const card=document.createElement('div');
     card.className=`review-card ${shouldBeLocked ? 'locked' : ''}`;
+    card.setAttribute('data-review-id', r.id);
     card.innerHTML=`
       <div class="review-header">
         <div class="review-lead-info">
@@ -614,4 +619,95 @@ function setupStickyHeader() {
   
   // Убираем все обработчики скролла - шапка всегда видна
   console.log('📌 Фиксированная шапка настроена (всегда видимая)');
+}
+
+// Функция для мгновенного скрытия заявки у других операторов
+function hideReviewFromOthers(reviewId) {
+  // Находим карточку заявки
+  const reviewCards = document.querySelectorAll('.review-card');
+  reviewCards.forEach(card => {
+    const cardId = card.getAttribute('data-review-id');
+    if (cardId === reviewId) {
+      // Добавляем анимацию исчезновения
+      card.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
+      card.style.opacity = '0';
+      card.style.transform = 'scale(0.95)';
+      
+      // Удаляем карточку после анимации
+      setTimeout(() => {
+        if (card.parentNode) {
+          card.remove();
+          console.log(`🚫 Заявка ${reviewId} мгновенно скрыта`);
+        }
+      }, 300);
+    }
+  });
+}
+
+// Функция для мгновенного показа заявки (при разблокировке)
+function showReviewInstantly(reviewData) {
+  // Эта функция будет вызываться при получении уведомления о разблокировке
+  // Пока что просто обновляем весь список
+  loadReviews();
+}
+
+// Настройка Server-Sent Events для мгновенных уведомлений
+function setupSSE() {
+  const token = localStorage.getItem('token');
+  if (!token) return;
+  
+  const eventSource = new EventSource(`/api/quality/notifications?token=${encodeURIComponent(token)}`);
+  
+  eventSource.onopen = function(event) {
+    console.log('🔌 SSE соединение установлено');
+  };
+  
+  eventSource.onmessage = function(event) {
+    try {
+      const data = JSON.parse(event.data);
+      handleSSEMessage(data);
+    } catch (error) {
+      console.error('Ошибка парсинга SSE сообщения:', error);
+    }
+  };
+  
+  eventSource.onerror = function(event) {
+    console.error('Ошибка SSE соединения:', event);
+    // Переподключаемся через 5 секунд
+    setTimeout(() => {
+      if (eventSource.readyState === EventSource.CLOSED) {
+        console.log('🔄 Переподключение SSE...');
+        setupSSE();
+      }
+    }, 5000);
+  };
+  
+  // Сохраняем ссылку для закрытия при необходимости
+  window.sseConnection = eventSource;
+}
+
+// Обработка сообщений от SSE
+function handleSSEMessage(data) {
+  console.log('📨 Получено SSE сообщение:', data);
+  
+  switch (data.type) {
+    case 'connected':
+      console.log('✅ SSE подключен для пользователя:', data.userId);
+      break;
+      
+    case 'review_locked':
+      console.log(`🔒 Заявка ${data.reviewId} заблокирована оператором ${data.lockedBy}`);
+      // Мгновенно скрываем заявку
+      hideReviewFromOthers(data.reviewId);
+      break;
+      
+    case 'review_unlocked':
+      console.log(`🔓 Заявка ${data.reviewId} разблокирована оператором ${data.unlockedBy}`);
+      // Обновляем список заявок
+      loadReviews();
+      break;
+      
+    default:
+      console.log('❓ Неизвестный тип SSE сообщения:', data.type);
+  }
 }

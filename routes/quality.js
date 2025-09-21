@@ -1,6 +1,7 @@
 const express = require('express');
 const supabaseAdmin = require('../config/supabase-admin');
 const { authenticateToken } = require('../middleware/auth');
+const jwt = require('jsonwebtoken');
 const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
 
 const router = express.Router();
@@ -465,6 +466,14 @@ router.post('/reviews/:id/lock', authenticateToken, requireQuality, async (req, 
     
     console.log(`✅ Заявка ${id} успешно заблокирована пользователем ${userName}`);
     
+    // Отправляем уведомление другим операторам
+    broadcastToOthers(userId, {
+      type: 'review_locked',
+      reviewId: id,
+      lockedBy: userName,
+      lockedAt: new Date().toISOString()
+    });
+    
     res.json({ 
       success: true, 
       message: 'Review locked successfully',
@@ -501,6 +510,14 @@ router.post('/reviews/:id/unlock', authenticateToken, requireQuality, async (req
     reviewLocks.delete(id);
     
     console.log(`✅ Заявка ${id} успешно разблокирована пользователем ${userName}`);
+    
+    // Отправляем уведомление другим операторам
+    broadcastToOthers(userId, {
+      type: 'review_unlocked',
+      reviewId: id,
+      unlockedBy: userName,
+      unlockedAt: new Date().toISOString()
+    });
     
     res.json({ 
       success: true, 
@@ -586,6 +603,71 @@ router.get('/reviews/:id', authenticateToken, requireQuality, async (req, res) =
     res.status(500).json({ error: 'Internal server error' });
   }
 });
+
+// ====== Server-Sent Events для мгновенных уведомлений ======
+
+// Хранилище активных соединений
+const activeConnections = new Map(); // userId -> response
+
+// SSE endpoint для уведомлений о блокировках
+router.get('/notifications', (req, res) => {
+  // Проверяем токен из query параметра
+  const token = req.query.token;
+  if (!token) {
+    return res.status(401).json({ error: 'Token required' });
+  }
+  
+  // Валидируем токен
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const userId = decoded.userId;
+    
+    // Проверяем роль пользователя
+    if (decoded.role !== 'quality' && decoded.role !== 'admin') {
+      return res.status(403).json({ error: 'Insufficient permissions' });
+    }
+  
+  // Настраиваем SSE
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive',
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'Cache-Control'
+  });
+  
+  // Сохраняем соединение
+  activeConnections.set(userId, res);
+  
+  // Отправляем начальное сообщение
+  res.write(`data: ${JSON.stringify({ type: 'connected', userId })}\n\n`);
+  
+    // Обработка закрытия соединения
+    req.on('close', () => {
+      activeConnections.delete(userId);
+      console.log(`🔌 SSE соединение закрыто для пользователя ${userId}`);
+    });
+    
+    console.log(`🔌 SSE соединение установлено для пользователя ${userId}`);
+  } catch (error) {
+    console.error('SSE authentication error:', error);
+    res.status(401).json({ error: 'Invalid token' });
+  }
+});
+
+// Функция для отправки уведомления всем операторам кроме указанного
+function broadcastToOthers(excludeUserId, data) {
+  for (const [userId, res] of activeConnections.entries()) {
+    if (userId !== excludeUserId) {
+      try {
+        res.write(`data: ${JSON.stringify(data)}\n\n`);
+      } catch (error) {
+        console.error(`Ошибка отправки SSE пользователю ${userId}:`, error);
+        activeConnections.delete(userId);
+      }
+    }
+  }
+}
 
 // ====== Helper Functions ======
 
