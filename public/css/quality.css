@@ -487,12 +487,6 @@
     position: relative;
 }
 
-.review-card.interacting {
-    transform: scale(1.02);
-    box-shadow: 0 8px 25px rgba(0, 123, 255, 0.15);
-    transition: all 0.2s ease;
-}
-
 .review-card.locked::before {
     content: '';
     position: absolute;
