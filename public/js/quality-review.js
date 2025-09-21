@@ -26,6 +26,20 @@ async function init() {
         await loadMe(token);
         await loadReview();
         bindEvents();
+        
+        // Автоматическая разблокировка при закрытии страницы
+        window.addEventListener('beforeunload', () => {
+            if (reviewId) {
+                // Отправляем запрос на разблокировку (не ждем ответа)
+                fetch(`/api/quality/reviews/${reviewId}/unlock`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                        'Content-Type': 'application/json'
+                    }
+                }).catch(() => {}); // Игнорируем ошибки
+            }
+        });
     } catch (e) {
         notify('Ошибка загрузки страницы', 'error');
     }

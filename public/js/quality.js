@@ -14,10 +14,10 @@ async function init(){
   loadAnalytics();
   loadReviews();
   
-  // Автоматическое обновление списка заявок каждые 5 секунд
+  // Автоматическое обновление списка заявок каждые 2 секунды
   setInterval(() => {
     loadReviews();
-  }, 5000);
+  }, 2000);
 }
 
 function setupUI(){
@@ -58,7 +58,9 @@ async function lockReview(reviewId) {
     }
     
     notify('✅ Заявка заблокирована', 'success');
-    loadReviews(); // Обновляем список
+    // Принудительное обновление для синхронизации с другими пользователями
+    setTimeout(() => loadReviews(true), 500);
+    setTimeout(() => loadReviews(), 1500);
   } catch (e) {
     console.error('Error locking review:', e);
     notify(`❌ Ошибка блокировки: ${e.message}`, 'error');
@@ -82,7 +84,9 @@ async function unlockReview(reviewId) {
     }
     
     notify('✅ Заявка разблокирована', 'success');
-    loadReviews(); // Обновляем список
+    // Принудительное обновление для синхронизации с другими пользователями
+    setTimeout(() => loadReviews(true), 500);
+    setTimeout(() => loadReviews(), 1500);
   } catch (e) {
     console.error('Error unlocking review:', e);
     notify(`❌ Ошибка разблокировки: ${e.message}`, 'error');
@@ -168,9 +172,18 @@ async function loadMe(token){
   if(currentUser.role!=='quality'&&currentUser.role!=='admin'){window.location.href='/';}
 }
 
-async function loadReviews(){
+async function loadReviews(showLoading = false){
   try{
     const status=document.getElementById('statusFilter').value;
+    
+    // Показываем индикатор загрузки только если явно запрошено
+    if (showLoading) {
+      const container = document.getElementById('reviewsTableBody');
+      if (container) {
+        container.innerHTML = '<div class="review-loading">🔄 Обновление...</div>';
+      }
+    }
+    
     const resp=await fetch(`/api/quality/reviews?status=${encodeURIComponent(status)}`,{headers:{'Authorization':`Bearer ${localStorage.getItem('token')}`}});
     if(!resp.ok){throw new Error('Ошибка загрузки заявок')}
     const rows=await resp.json();
@@ -280,7 +293,13 @@ function renderReviews(rows){
 }
 
 function openReview(id){
-  window.location.href=`/quality-review.html?id=${encodeURIComponent(id)}`;
+  // Блокируем заявку перед переходом на страницу проверки
+  lockReview(id).then(() => {
+    window.location.href=`/quality-review.html?id=${encodeURIComponent(id)}`;
+  }).catch(() => {
+    // Если не удалось заблокировать, все равно переходим
+    window.location.href=`/quality-review.html?id=${encodeURIComponent(id)}`;
+  });
 }
 
 function filterRows(query){
@@ -321,7 +340,9 @@ async function approve(id){
     if(!resp.ok){throw new Error('Не удалось одобрить')}
     const result = await resp.json();
     notify(`Одобрено! Оператору зачислено ${result.amount}₽ за проект "${result.project}"`,'success');
-    loadReviews();
+    // Принудительное обновление для синхронизации с другими пользователями
+    setTimeout(() => loadReviews(), 500);
+    setTimeout(() => loadReviews(), 1500);
   }catch(e){notify(e.message,'error')}
 }
 
@@ -331,7 +352,9 @@ async function reject(id){
     const resp=await fetch(`/api/quality/reviews/${id}/reject`,{method:'POST',headers:{'Authorization':`Bearer ${localStorage.getItem('token')}`,'Content-Type':'application/json'},body:JSON.stringify({comment})});
     if(!resp.ok){throw new Error('Не удалось отклонить')}
     notify('Отклонено','warning');
-    loadReviews();
+    // Принудительное обновление для синхронизации с другими пользователями
+    setTimeout(() => loadReviews(), 500);
+    setTimeout(() => loadReviews(), 1500);
   }catch(e){notify(e.message,'error')}
 }
 

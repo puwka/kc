@@ -727,6 +727,26 @@
     opacity: 0.5;
 }
 
+.review-loading {
+    grid-column: 1 / -1;
+    text-align: center;
+    padding: 40px 20px;
+    color: #007bff;
+    font-size: 16px;
+    font-weight: 500;
+    background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
+    border-radius: 12px;
+    border: 1px solid #90caf9;
+    box-shadow: 0 2px 8px rgba(33, 150, 243, 0.1);
+    animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.7; }
+    100% { opacity: 1; }
+}
+
 /* Адаптивность */
 @media (max-width: 768px) {
     .reviews-grid {
