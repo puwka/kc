@@ -1,5 +1,51 @@
+/* Фиксированная шапка для страницы ОКК */
+.navbar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 1000;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 1rem 0;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    transform: translateY(0); /* Всегда видимая */
+}
+
+.nav-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 2rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.nav-title {
+    font-size: 1.5rem;
+    font-weight: 600;
+    margin: 0;
+}
+
+/* Отступ для контента под фиксированной шапкой */
+.main-content {
+    margin-top: 110px; /* Высота шапки + дополнительный отступ */
+}
+
+/* Дополнительный отступ для секции аналитики */
+.stats-grid {
+    margin-top: 24px !important;
+    margin-bottom: 32px !important;
+}
+
+/* Отступ для заголовка секции */
+.section-header {
+    margin-top: 16px !important;
+    margin-bottom: 20px !important;
+}
+
 /* Контейнер */
-.quality-container{max-width:1200px;margin:2rem auto;padding:0 2rem}
+.quality-container{max-width:1200px;margin:0 auto;padding:0 2rem}
 
 /* Современные карточки аналитики */
 .stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:16px}
@@ -1000,7 +1046,7 @@
     box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
     border: 1px solid #e9ecef;
     min-width: 140px;
-    z-index: 9999;
+    z-index: 10001; /* Выше чем у фиксированной шапки */
     overflow: hidden;
     margin-top: 8px;
 }

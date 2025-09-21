@@ -406,26 +406,26 @@ router.post('/reviews/:id/reject', authenticateToken, requireQuality, async (req
 // Кэш блокировок в памяти (временное решение)
 const reviewLocks = new Map(); // reviewId -> { userId, lockedAt, userName }
 
-// Очистка старых блокировок (старше 2 часов)
+// Очистка старых блокировок (старше 4 часов)
 setInterval(() => {
+  const now = Date.now();
+  const fourHoursAgo = now - (4 * 60 * 60 * 1000);
+  
+  for (const [reviewId, lock] of reviewLocks.entries()) {
+    if (lock.lockedAt < fourHoursAgo) {
+      reviewLocks.delete(reviewId);
+      console.log(`🧹 Автоматически разблокирована заявка ${reviewId} (старше 4 часов)`);
+    }
+  }
+}, 30 * 60 * 1000); // Проверяем каждые 30 минут
+
+// Функция для очистки старых блокировок
+function cleanupOldLocks() {
   const now = Date.now();
   const twoHoursAgo = now - (2 * 60 * 60 * 1000);
   
   for (const [reviewId, lock] of reviewLocks.entries()) {
     if (lock.lockedAt < twoHoursAgo) {
-      reviewLocks.delete(reviewId);
-      console.log(`🧹 Автоматически разблокирована заявка ${reviewId} (старше 2 часов)`);
-    }
-  }
-}, 10 * 60 * 1000); // Проверяем каждые 10 минут
-
-// Функция для очистки старых блокировок
-function cleanupOldLocks() {
-  const now = Date.now();
-  const thirtyMinutesAgo = now - (30 * 60 * 1000);
-  
-  for (const [reviewId, lock] of reviewLocks.entries()) {
-    if (lock.lockedAt < thirtyMinutesAgo) {
       reviewLocks.delete(reviewId);
       console.log(`🧹 Очищена старая блокировка заявки ${reviewId}`);
     }
@@ -440,17 +440,20 @@ router.post('/reviews/:id/lock', authenticateToken, requireQuality, async (req, 
     const userName = req.user.name || 'Неизвестный оператор';
     
     console.log(`🔒 Попытка блокировки заявки ${id} пользователем ${userName} (${userId})`);
+    console.log(`📊 Текущее состояние блокировок:`, Array.from(reviewLocks.entries()));
     
     // Проверяем, не заблокирована ли уже заявка другим оператором
     if (reviewLocks.has(id)) {
       const existingLock = reviewLocks.get(id);
+      console.log(`🔍 Найдена существующая блокировка:`, existingLock);
       if (existingLock.userId !== userId) {
-        console.log(`❌ Заявка ${id} уже заблокирована оператором ${existingLock.userName}`);
+        console.log(`❌ Заявка ${id} уже заблокирована оператором ${existingLock.userName} (${existingLock.userId})`);
         return res.status(409).json({ 
           error: 'Review is already locked by another operator',
           locked_by_name: existingLock.userName
         });
       }
+      console.log(`✅ Заявка ${id} уже заблокирована текущим пользователем, обновляем время`);
     }
     
     // Блокируем заявку

@@ -5,14 +5,22 @@ let localLocks = new Map(); // Локальный кэш блокировок д
 
 // Функция для обновления локального кэша блокировок
 function updateLocalLocks(serverLocks) {
-  // Обновляем локальный кэш только если серверные данные более свежие
+  // Очищаем локальный кэш от старых записей (старше 1 минуты)
+  const now = Date.now();
+  for (const [reviewId, lock] of localLocks.entries()) {
+    if (now - lock.timestamp > 60000) { // 1 минута
+      localLocks.delete(reviewId);
+    }
+  }
+  
+  // Обновляем локальный кэш на основе серверных данных
   for (const review of serverLocks) {
     if (review.is_locked && review.locked_by) {
       localLocks.set(review.id, {
         locked_by: review.locked_by,
         locked_by_name: review.locked_by_name,
         locked_at: review.locked_at,
-        timestamp: Date.now()
+        timestamp: now
       });
     } else if (!review.is_locked) {
       // Если сервер говорит, что заявка не заблокирована, удаляем из локального кэша
@@ -74,6 +82,7 @@ async function init(){
   loadProjects();
   loadAnalytics();
   loadReviews();
+  setupStickyHeader();
   
 // Автоматическое обновление списка заявок каждые 3 секунды
 setInterval(() => {
@@ -185,8 +194,12 @@ async function lockReview(reviewId) {
     if (!resp.ok) {
       if (resp.status === 409) {
         notify(`❌ Заявка уже заблокирована оператором: ${result.locked_by_name}`, 'warning');
+      } else if (resp.status === 404) {
+        notify('❌ Заявка не найдена', 'error');
+      } else if (resp.status === 403) {
+        notify('❌ Недостаточно прав для блокировки заявки', 'error');
       } else {
-        throw new Error(result.error || 'Ошибка блокировки заявки');
+        notify(`❌ Ошибка блокировки: ${result.error || 'Неизвестная ошибка'}`, 'error');
       }
       return;
     }
@@ -205,11 +218,7 @@ async function lockReview(reviewId) {
     setTimeout(() => {
       loadReviews();
       loadAnalytics();
-    }, 1000);
-    setTimeout(() => {
-      loadReviews();
-      loadAnalytics();
-    }, 3000);
+    }, 500);
   } catch (e) {
     console.error('Error locking review:', e);
     notify(`❌ Ошибка блокировки: ${e.message}`, 'error');
@@ -217,6 +226,11 @@ async function lockReview(reviewId) {
 }
 
 async function unlockReview(reviewId) {
+  // Подтверждение разблокировки
+  if (!confirm('Вы уверены, что хотите разблокировать эту заявку?')) {
+    return;
+  }
+  
   try {
     const resp = await fetch(`/api/quality/reviews/${reviewId}/unlock`, {
       method: 'POST',
@@ -229,7 +243,14 @@ async function unlockReview(reviewId) {
     const result = await resp.json();
     
     if (!resp.ok) {
-      throw new Error(result.error || 'Ошибка разблокировки заявки');
+      if (resp.status === 404) {
+        notify('❌ Заявка не заблокирована', 'warning');
+      } else if (resp.status === 403) {
+        notify('❌ Заявка заблокирована другим оператором', 'warning');
+      } else {
+        notify(`❌ Ошибка разблокировки: ${result.error || 'Неизвестная ошибка'}`, 'error');
+      }
+      return;
     }
     
     notify('✅ Заявка разблокирована', 'success');
@@ -241,11 +262,7 @@ async function unlockReview(reviewId) {
     setTimeout(() => {
       loadReviews();
       loadAnalytics();
-    }, 1000);
-    setTimeout(() => {
-      loadReviews();
-      loadAnalytics();
-    }, 3000);
+    }, 500);
   } catch (e) {
     console.error('Error unlocking review:', e);
     notify(`❌ Ошибка разблокировки: ${e.message}`, 'error');
@@ -540,11 +557,7 @@ async function approve(id){
     setTimeout(() => {
       loadReviews();
       loadAnalytics();
-    }, 1000);
-    setTimeout(() => {
-      loadReviews();
-      loadAnalytics();
-    }, 3000);
+    }, 500);
   }catch(e){notify(e.message,'error')}
 }
 
@@ -562,11 +575,7 @@ async function reject(id){
     setTimeout(() => {
       loadReviews();
       loadAnalytics();
-    }, 1000);
-    setTimeout(() => {
-      loadReviews();
-      loadAnalytics();
-    }, 3000);
+    }, 500);
   }catch(e){notify(e.message,'error')}
 }
 
@@ -577,4 +586,13 @@ function notify(message,type='info'){
   el.textContent=message;
   box.appendChild(el);
   setTimeout(()=>el.remove(),3000);
+}
+
+// Функция для настройки фиксированной шапки
+function setupStickyHeader() {
+  const navbar = document.querySelector('.navbar');
+  if (!navbar) return;
+  
+  // Убираем все обработчики скролла - шапка всегда видна
+  console.log('📌 Фиксированная шапка настроена (всегда видимая)');
 }
