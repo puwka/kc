@@ -2,6 +2,104 @@ let currentUser=null;
 let projects = [];
 let reviews = [];
 
+// Переменные для отслеживания взаимодействия пользователя
+let isUserInteracting = false;
+let lastInteractionTime = 0;
+let hoveredCardId = null;
+
+// Переменная для хранения предыдущих данных
+let previousReviewsData = null;
+
+// Функция для сравнения данных заявок
+function reviewsDataChanged(newData) {
+  if (!previousReviewsData) return true;
+  
+  // Сравниваем количество заявок
+  if (previousReviewsData.length !== newData.length) return true;
+  
+  // Сравниваем каждую заявку
+  for (let i = 0; i < newData.length; i++) {
+    const old = previousReviewsData[i];
+    const new_ = newData[i];
+    
+    if (!old || !new_) return true;
+    
+    // Сравниваем ключевые поля
+    if (old.id !== new_.id || 
+        old.status !== new_.status || 
+        old.is_locked !== new_.is_locked ||
+        old.locked_by !== new_.locked_by ||
+        old.locked_by_name !== new_.locked_by_name) {
+      return true;
+    }
+  }
+  
+  return false;
+}
+
+// Функции для отслеживания взаимодействия пользователя
+function startUserInteraction(cardId) {
+  isUserInteracting = true;
+  lastInteractionTime = Date.now();
+  hoveredCardId = cardId;
+  
+  // Добавляем визуальную индикацию
+  const card = document.querySelector(`[data-card-id="${cardId}"]`);
+  if (card) {
+    card.classList.add('interacting');
+  }
+}
+
+function stopUserInteraction() {
+  isUserInteracting = false;
+  
+  // Убираем визуальную индикацию
+  if (hoveredCardId) {
+    const card = document.querySelector(`[data-card-id="${hoveredCardId}"]`);
+    if (card) {
+      card.classList.remove('interacting');
+    }
+  }
+  
+  // Обновляем список после завершения взаимодействия
+  setTimeout(() => {
+    if (!isUserInteracting) {
+      // Принудительно обновляем DOM с последними данными
+      if (previousReviewsData) {
+        renderReviews(previousReviewsData);
+      }
+      loadReviews();
+    }
+  }, 1000);
+}
+
+// Проверяем, нужно ли обновление после паузы в взаимодействии
+setInterval(() => {
+  if (isUserInteracting && Date.now() - lastInteractionTime > 5000) {
+    // Если пользователь не взаимодействовал 5 секунд, сбрасываем флаг
+    stopUserInteraction();
+  }
+}, 2000);
+
+// Глобальные обработчики для отслеживания взаимодействия
+document.addEventListener('mousemove', () => {
+  if (isUserInteracting) {
+    lastInteractionTime = Date.now();
+  }
+});
+
+document.addEventListener('keydown', () => {
+  if (isUserInteracting) {
+    lastInteractionTime = Date.now();
+  }
+});
+
+document.addEventListener('scroll', () => {
+  if (isUserInteracting) {
+    lastInteractionTime = Date.now();
+  }
+});
+
 document.addEventListener('DOMContentLoaded',()=>{init()});
 
 async function init(){
@@ -14,22 +112,34 @@ async function init(){
   loadAnalytics();
   loadReviews();
   
-// Автоматическое обновление списка заявок каждые 1.5 секунды
-setInterval(() => {
-  loadReviews();
-}, 1500);
+  // Автоматическое обновление списка заявок каждые 1.5 секунды
+  setInterval(() => {
+    // Не обновляем, если пользователь активно взаимодействует с карточкой или наводит курсор
+    if (!isUserInteracting && !hoveredCardId) {
+      loadReviews();
+    }
+  }, 1500);
 
-// Обновление при возврате на страницу (когда пользователь переключается между вкладками)
-document.addEventListener('visibilitychange', () => {
-  if (!document.hidden) {
-    loadReviews();
-  }
-});
+  // Медленное обновление при наведении на карточку (каждые 10 секунд)
+  setInterval(() => {
+    if (hoveredCardId && !isUserInteracting) {
+      loadReviews();
+    }
+  }, 10000);
 
-// Обновление при фокусе на окне
-window.addEventListener('focus', () => {
-  loadReviews();
-});
+  // Обновление при возврате на страницу (когда пользователь переключается между вкладками)
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden && !isUserInteracting && !hoveredCardId) {
+      loadReviews();
+    }
+  });
+
+  // Обновление при фокусе на окне
+  window.addEventListener('focus', () => {
+    if (!isUserInteracting && !hoveredCardId) {
+      loadReviews();
+    }
+  });
 }
 
 function setupUI(){
@@ -71,8 +181,16 @@ async function lockReview(reviewId) {
     
     notify('✅ Заявка заблокирована', 'success');
     // Принудительное обновление для синхронизации с другими пользователями
-    setTimeout(() => loadReviews(), 500);
-    setTimeout(() => loadReviews(), 1500);
+    setTimeout(() => {
+      if (!isUserInteracting && !hoveredCardId) {
+        loadReviews();
+      }
+    }, 500);
+    setTimeout(() => {
+      if (!isUserInteracting && !hoveredCardId) {
+        loadReviews();
+      }
+    }, 1500);
   } catch (e) {
     console.error('Error locking review:', e);
     notify(`❌ Ошибка блокировки: ${e.message}`, 'error');
@@ -99,8 +217,16 @@ async function unlockReview(reviewId) {
     // Устанавливаем флаг принудительного обновления
     sessionStorage.setItem('forceRefreshQC', 'true');
     // Принудительное обновление для синхронизации с другими пользователями
-    setTimeout(() => loadReviews(), 500);
-    setTimeout(() => loadReviews(), 1500);
+    setTimeout(() => {
+      if (!isUserInteracting && !hoveredCardId) {
+        loadReviews();
+      }
+    }, 500);
+    setTimeout(() => {
+      if (!isUserInteracting && !hoveredCardId) {
+        loadReviews();
+      }
+    }, 1500);
   } catch (e) {
     console.error('Error unlocking review:', e);
     notify(`❌ Ошибка разблокировки: ${e.message}`, 'error');
@@ -208,7 +334,19 @@ async function loadReviews(showLoading = false){
     const resp=await fetch(`/api/quality/reviews?status=${encodeURIComponent(status)}`,{headers:{'Authorization':`Bearer ${localStorage.getItem('token')}`}});
     if(!resp.ok){throw new Error('Ошибка загрузки заявок')}
     const rows=await resp.json();
-    renderReviews(rows);
+    
+    // Проверяем, изменились ли данные
+    if (reviewsDataChanged(rows) || showLoading) {
+      // Если пользователь взаимодействует с карточкой или наводит курсор, откладываем обновление
+      if (isUserInteracting || hoveredCardId) {
+        // Сохраняем данные для обновления позже
+        previousReviewsData = JSON.parse(JSON.stringify(rows));
+        return;
+      }
+      
+      previousReviewsData = JSON.parse(JSON.stringify(rows)); // Глубокое копирование
+      renderReviews(rows);
+    }
   }catch(e){notify(e.message,'error')}
 }
 
@@ -249,6 +387,7 @@ function renderReviews(rows){
     
     const card=document.createElement('div');
     card.className=`review-card ${shouldBeLocked ? 'locked' : ''}`;
+    card.setAttribute('data-card-id', r.id);
     card.innerHTML=`
       <div class="review-header">
         <div class="review-lead-info">
@@ -312,6 +451,50 @@ function renderReviews(rows){
         </button>
       </div>
     `;
+    
+    // Добавляем обработчики событий для отслеживания взаимодействия
+    card.addEventListener('mouseenter', () => {
+      hoveredCardId = r.id;
+      // Не устанавливаем isUserInteracting = true, только отмечаем наведение
+    });
+    
+    card.addEventListener('mouseleave', () => {
+      hoveredCardId = null;
+      // Не сбрасываем isUserInteracting, так как пользователь может продолжать взаимодействие
+      // Но обновляем список, если пользователь не взаимодействует активно
+      if (!isUserInteracting) {
+        // Принудительно обновляем DOM с последними данными
+        if (previousReviewsData) {
+          renderReviews(previousReviewsData);
+        }
+        setTimeout(() => {
+          if (!isUserInteracting && !hoveredCardId) {
+            loadReviews();
+          }
+        }, 500);
+      }
+    });
+    
+    card.addEventListener('mousedown', () => {
+      startUserInteraction(r.id);
+    });
+    
+    card.addEventListener('mouseup', () => {
+      lastInteractionTime = Date.now();
+    });
+    
+    // Обработчики для кнопок внутри карточки
+    const buttons = card.querySelectorAll('button, a');
+    buttons.forEach(button => {
+      button.addEventListener('mouseenter', () => {
+        startUserInteraction(r.id);
+      });
+      
+      button.addEventListener('click', () => {
+        lastInteractionTime = Date.now();
+      });
+    });
+    
     container.appendChild(card);
   });
 }
@@ -367,8 +550,16 @@ async function approve(id){
     // Устанавливаем флаг принудительного обновления
     sessionStorage.setItem('forceRefreshQC', 'true');
     // Принудительное обновление для синхронизации с другими пользователями
-    setTimeout(() => loadReviews(), 500);
-    setTimeout(() => loadReviews(), 1500);
+    setTimeout(() => {
+      if (!isUserInteracting && !hoveredCardId) {
+        loadReviews();
+      }
+    }, 500);
+    setTimeout(() => {
+      if (!isUserInteracting && !hoveredCardId) {
+        loadReviews();
+      }
+    }, 1500);
   }catch(e){notify(e.message,'error')}
 }
 
@@ -381,8 +572,16 @@ async function reject(id){
     // Устанавливаем флаг принудительного обновления
     sessionStorage.setItem('forceRefreshQC', 'true');
     // Принудительное обновление для синхронизации с другими пользователями
-    setTimeout(() => loadReviews(), 500);
-    setTimeout(() => loadReviews(), 1500);
+    setTimeout(() => {
+      if (!isUserInteracting && !hoveredCardId) {
+        loadReviews();
+      }
+    }, 500);
+    setTimeout(() => {
+      if (!isUserInteracting && !hoveredCardId) {
+        loadReviews();
+      }
+    }, 1500);
   }catch(e){notify(e.message,'error')}
 }
 
