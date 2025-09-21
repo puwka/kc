@@ -550,17 +550,36 @@ router.get('/overview', authenticateToken, requireQuality, async (req, res) => {
 
     // earnings: sum of transactions for quality checks, or processed * 25 fallback
     let earnings = 0;
+    let earningsToday = 0;
     const { data: tx, error: txErr } = await supabaseAdmin
       .from('user_transactions')
-      .select('amount, description')
+      .select('amount, description, created_at')
       .eq('user_id', req.user.id);
 
     if (!txErr && tx) {
+      // Общий заработок
       earnings = tx
         .filter(t => (t.description || '').toLowerCase().includes('проверка лида'))
         .reduce((sum, t) => sum + parseFloat(t.amount || 0), 0);
+      
+      // Заработок за сегодня (по МСК)
+      const today = new Date();
+      const mskOffset = 3 * 60; // UTC+3 в минутах
+      const mskToday = new Date(today.getTime() + (mskOffset * 60 * 1000));
+      const startOfDay = new Date(mskToday.getFullYear(), mskToday.getMonth(), mskToday.getDate());
+      const endOfDay = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000);
+      
+      earningsToday = tx
+        .filter(t => {
+          const tDate = new Date(t.created_at);
+          const tMskDate = new Date(tDate.getTime() + (mskOffset * 60 * 1000));
+          return tMskDate >= startOfDay && tMskDate < endOfDay && 
+                 (t.description || '').toLowerCase().includes('проверка лида');
+        })
+        .reduce((sum, t) => sum + parseFloat(t.amount || 0), 0);
     } else {
       earnings = processed * 25;
+      earningsToday = 0; // Если нет транзакций, то и за сегодня 0
     }
 
     const conversion_rate = processed > 0 ? approved / processed : 0;
@@ -593,7 +612,7 @@ router.get('/overview', authenticateToken, requireQuality, async (req, res) => {
       avg_pending_wait_minutes = Math.round(sum / pendingRows.length / 60000);
     }
 
-    res.json({ processed, approved, conversion_rate, earnings, avg_review_minutes, avg_pending_wait_minutes });
+    res.json({ processed, approved, conversion_rate, earnings, earningsToday, avg_review_minutes, avg_pending_wait_minutes });
   } catch (e) {
     console.error('Quality overview exception:', e);
     res.status(500).json({ error: 'Internal server error' });

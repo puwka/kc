@@ -75,16 +75,23 @@ setInterval(() => {
   loadReviews();
 }, 3000);
 
+// Автоматическое обновление аналитики каждые 5 минут
+setInterval(() => {
+  loadAnalytics();
+}, 5 * 60 * 1000);
+
 // Обновление при возврате на страницу (когда пользователь переключается между вкладками)
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden) {
     loadReviews();
+    loadAnalytics();
   }
 });
 
 // Обновление при фокусе на окне
 window.addEventListener('focus', () => {
   loadReviews();
+  loadAnalytics();
 });
 }
 
@@ -136,8 +143,14 @@ async function lockReview(reviewId) {
     });
     
     // Принудительное обновление для синхронизации с другими пользователями
-    setTimeout(() => loadReviews(), 1000);
-    setTimeout(() => loadReviews(), 3000);
+    setTimeout(() => {
+      loadReviews();
+      loadAnalytics();
+    }, 1000);
+    setTimeout(() => {
+      loadReviews();
+      loadAnalytics();
+    }, 3000);
   } catch (e) {
     console.error('Error locking review:', e);
     notify(`❌ Ошибка блокировки: ${e.message}`, 'error');
@@ -166,8 +179,14 @@ async function unlockReview(reviewId) {
     localLocks.delete(reviewId);
     
     // Принудительное обновление для синхронизации с другими пользователями
-    setTimeout(() => loadReviews(), 1000);
-    setTimeout(() => loadReviews(), 3000);
+    setTimeout(() => {
+      loadReviews();
+      loadAnalytics();
+    }, 1000);
+    setTimeout(() => {
+      loadReviews();
+      loadAnalytics();
+    }, 3000);
   } catch (e) {
     console.error('Error unlocking review:', e);
     notify(`❌ Ошибка разблокировки: ${e.message}`, 'error');
@@ -182,6 +201,7 @@ function renderAnalytics(s){
   const success=s.approved||0;
   const conversion=(s.conversion_rate*100||0).toFixed(1)+'%';
   const earnings=(s.earnings||0).toFixed(2)+' ₽';
+  const earningsToday=(s.earningsToday||0).toFixed(2)+' ₽';
   box.innerHTML=`
     <div class="stat-card">
       <div class="stat-value">${called}</div>
@@ -198,6 +218,10 @@ function renderAnalytics(s){
     <div class="stat-card">
       <div class="stat-value">${earnings}</div>
       <div class="stat-label">Заработок</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">${earningsToday}</div>
+      <div class="stat-label">Заработано сегодня</div>
     </div>
     <div class="stat-card">
       <div class="stat-value">${s.avg_review_minutes||0} мин</div>
@@ -438,8 +462,14 @@ async function approve(id){
     localLocks.delete(id);
     
     // Принудительное обновление для синхронизации с другими пользователями
-    setTimeout(() => loadReviews(), 1000);
-    setTimeout(() => loadReviews(), 3000);
+    setTimeout(() => {
+      loadReviews();
+      loadAnalytics();
+    }, 1000);
+    setTimeout(() => {
+      loadReviews();
+      loadAnalytics();
+    }, 3000);
   }catch(e){notify(e.message,'error')}
 }
 
@@ -454,8 +484,14 @@ async function reject(id){
     localLocks.delete(id);
     
     // Принудительное обновление для синхронизации с другими пользователями
-    setTimeout(() => loadReviews(), 1000);
-    setTimeout(() => loadReviews(), 3000);
+    setTimeout(() => {
+      loadReviews();
+      loadAnalytics();
+    }, 1000);
+    setTimeout(() => {
+      loadReviews();
+      loadAnalytics();
+    }, 3000);
   }catch(e){notify(e.message,'error')}
 }
 
