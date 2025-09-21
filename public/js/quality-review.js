@@ -26,6 +26,8 @@ async function init() {
         await loadMe(token);
         await loadReview();
         bindEvents();
+        setupUserMenu();
+        loadUserEarnings();
         
         // Автоматическая разблокировка при закрытии страницы
         let isUnlocked = false;
@@ -613,4 +615,80 @@ function notify(message, type = 'info') {
             }, 300);
         }
     }, 5000);
+}
+
+// Функция для настройки выпадающего меню
+function setupUserMenu() {
+  const checkElements = () => {
+    const userName = document.getElementById('userName');
+    const userDropdown = document.getElementById('userDropdown');
+    
+    if (!userName || !userDropdown) {
+      setTimeout(checkElements, 100);
+      return;
+    }
+    
+    // Удаляем все старые обработчики
+    userName.onclick = null;
+    userName.onmousedown = null;
+    userName.onmouseup = null;
+    
+    // Добавляем обработчик клика
+    userName.onclick = function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      
+      if (userDropdown.style.display === 'block' || userDropdown.style.display === '') {
+        userDropdown.style.display = 'none';
+      } else {
+        userDropdown.style.display = 'block';
+      }
+    };
+    
+    // Обработчик для кнопки выхода
+    const logoutBtn = document.getElementById('logoutBtn');
+    if (logoutBtn) {
+      logoutBtn.onclick = function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        localStorage.clear();
+        window.location.href = '/login.html';
+      };
+    }
+    
+    // Закрытие при клике вне
+    document.onclick = function(e) {
+      if (!userName.contains(e.target) && !userDropdown.contains(e.target)) {
+        userDropdown.style.display = 'none';
+      }
+    };
+  };
+  
+  checkElements();
+}
+
+// Функция для загрузки заработка пользователя
+async function loadUserEarnings() {
+  try {
+    const resp = await fetch('/api/quality/overview', {
+      headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+    });
+    
+    if (!resp.ok) {
+      throw new Error('Ошибка загрузки заработка');
+    }
+    
+    const data = await resp.json();
+    updateHeaderEarnings(data.earnings || 0);
+  } catch (e) {
+    console.error('Error loading user earnings:', e);
+  }
+}
+
+// Функция для обновления заработка в шапке
+function updateHeaderEarnings(earnings) {
+  const userEarnings = document.getElementById('userEarnings');
+  if (userEarnings) {
+    userEarnings.textContent = (earnings || 0).toFixed(2) + ' ₽';
+  }
 }

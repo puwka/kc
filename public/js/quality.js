@@ -60,6 +60,11 @@ function cleanupLocalLocks() {
 
 document.addEventListener('DOMContentLoaded',()=>{init()});
 
+// Дополнительная инициализация через 2 секунды
+setTimeout(() => {
+  setupUserMenu();
+}, 2000);
+
 async function init(){
   const token=localStorage.getItem('token');
   if(!token){window.location.href='/login.html';return}
@@ -99,64 +104,60 @@ function setupUI(){
   document.getElementById('navUser').style.display='flex';
   document.getElementById('userName').textContent=currentUser.name;
   
-  // Добавляем обработчики с небольшой задержкой, чтобы элементы точно загрузились
-  setTimeout(() => {
-    setupUserMenu();
-  }, 100);
-  
-  // Также пробуем инициализировать сразу
+  // Инициализируем меню сразу
   setupUserMenu();
 }
 
 function setupUserMenu() {
-  // Обработчик клика на имя пользователя для показа/скрытия выпадающего меню
-  const userName = document.getElementById('userName');
-  const userDropdown = document.getElementById('userDropdown');
-  
-  if (!userName || !userDropdown) {
-    console.error('User menu elements not found');
-    return;
-  }
-  
-  // Проверяем, не добавлены ли уже обработчики
-  if (userName.dataset.listenerAdded) {
-    return;
-  }
-  
-  userName.dataset.listenerAdded = 'true';
-  
-  userName.addEventListener('click', (e) => {
-    e.stopPropagation();
-    console.log('User name clicked, toggling dropdown');
+  // Ждем пока элементы загрузятся
+  const checkElements = () => {
+    const userName = document.getElementById('userName');
+    const userDropdown = document.getElementById('userDropdown');
     
-    // Переключаем класс show
-    userDropdown.classList.toggle('show');
+    if (!userName || !userDropdown) {
+      setTimeout(checkElements, 100);
+      return;
+    }
     
-    // Также переключаем display для надежности
-    if (userDropdown.classList.contains('show')) {
-      userDropdown.style.display = 'block';
-    } else {
-      userDropdown.style.display = 'none';
+    // Удаляем все старые обработчики
+    userName.onclick = null;
+    userName.onmousedown = null;
+    userName.onmouseup = null;
+    
+    // Добавляем обработчик клика
+    userName.onclick = function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      
+      if (userDropdown.style.display === 'block' || userDropdown.style.display === '') {
+        userDropdown.style.display = 'none';
+      } else {
+        userDropdown.style.display = 'block';
+      }
+    };
+    
+    // Обработчик для кнопки выхода
+    const logoutBtn = document.getElementById('logoutBtn');
+    if (logoutBtn) {
+      logoutBtn.onclick = function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        localStorage.clear();
+        window.location.href = '/login.html';
+      };
     }
-  });
+    
+    // Закрытие при клике вне
+    document.onclick = function(e) {
+      if (!userName.contains(e.target) && !userDropdown.contains(e.target)) {
+        userDropdown.style.display = 'none';
+      }
+    };
+  };
   
-  // Закрытие выпадающего меню при клике вне его
-  document.addEventListener('click', (e) => {
-    if (!userName.contains(e.target) && !userDropdown.contains(e.target)) {
-      userDropdown.classList.remove('show');
-      userDropdown.style.display = 'none';
-    }
-  });
-  
-  // Обработчик для кнопки выхода
-  const logoutBtn = document.getElementById('logoutBtn');
-  if (logoutBtn) {
-    logoutBtn.addEventListener('click', () => {
-      localStorage.clear();
-      window.location.href = '/login.html';
-    });
-  }
+  checkElements();
 }
+
 
 async function loadAnalytics(){
   try{
@@ -311,6 +312,11 @@ function bindEvents(){
   if(search){
     search.addEventListener('input',()=>filterRows(search.value));
   }
+  
+  // Дополнительная инициализация меню
+  setTimeout(() => {
+    setupUserMenu();
+  }, 500);
 }
 
 // Загрузка проектов с ценами

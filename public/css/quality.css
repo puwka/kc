@@ -1035,20 +1035,13 @@
     color: #721c24;
 }
 
-/* Анимация появления выпадающего меню */
+/* Простое переключение выпадающего меню */
 .user-dropdown {
-    opacity: 0;
-    transform: translateY(-10px);
-    transition: all 0.2s ease;
-    pointer-events: none;
-    display: block !important;
+    display: none;
 }
 
 .user-dropdown.show {
-    opacity: 1;
-    transform: translateY(0);
-    pointer-events: auto;
-    display: block !important;
+    display: block;
 }
 
 /* Адаптивность для мобильных устройств */
