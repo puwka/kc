@@ -98,6 +98,64 @@ window.addEventListener('focus', () => {
 function setupUI(){
   document.getElementById('navUser').style.display='flex';
   document.getElementById('userName').textContent=currentUser.name;
+  
+  // Добавляем обработчики с небольшой задержкой, чтобы элементы точно загрузились
+  setTimeout(() => {
+    setupUserMenu();
+  }, 100);
+  
+  // Также пробуем инициализировать сразу
+  setupUserMenu();
+}
+
+function setupUserMenu() {
+  // Обработчик клика на имя пользователя для показа/скрытия выпадающего меню
+  const userName = document.getElementById('userName');
+  const userDropdown = document.getElementById('userDropdown');
+  
+  if (!userName || !userDropdown) {
+    console.error('User menu elements not found');
+    return;
+  }
+  
+  // Проверяем, не добавлены ли уже обработчики
+  if (userName.dataset.listenerAdded) {
+    return;
+  }
+  
+  userName.dataset.listenerAdded = 'true';
+  
+  userName.addEventListener('click', (e) => {
+    e.stopPropagation();
+    console.log('User name clicked, toggling dropdown');
+    
+    // Переключаем класс show
+    userDropdown.classList.toggle('show');
+    
+    // Также переключаем display для надежности
+    if (userDropdown.classList.contains('show')) {
+      userDropdown.style.display = 'block';
+    } else {
+      userDropdown.style.display = 'none';
+    }
+  });
+  
+  // Закрытие выпадающего меню при клике вне его
+  document.addEventListener('click', (e) => {
+    if (!userName.contains(e.target) && !userDropdown.contains(e.target)) {
+      userDropdown.classList.remove('show');
+      userDropdown.style.display = 'none';
+    }
+  });
+  
+  // Обработчик для кнопки выхода
+  const logoutBtn = document.getElementById('logoutBtn');
+  if (logoutBtn) {
+    logoutBtn.addEventListener('click', () => {
+      localStorage.clear();
+      window.location.href = '/login.html';
+    });
+  }
 }
 
 async function loadAnalytics(){
@@ -202,6 +260,10 @@ function renderAnalytics(s){
   const conversion=(s.conversion_rate*100||0).toFixed(1)+'%';
   const earnings=(s.earnings||0).toFixed(2)+' ₽';
   const earningsToday=(s.earningsToday||0).toFixed(2)+' ₽';
+  
+  // Обновляем заработок в шапке
+  updateHeaderEarnings(s.earnings || 0);
+  
   box.innerHTML=`
     <div class="stat-card">
       <div class="stat-value">${called}</div>
@@ -233,8 +295,15 @@ function renderAnalytics(s){
     </div>`;
 }
 
+// Функция для обновления заработка в шапке
+function updateHeaderEarnings(earnings) {
+  const userEarnings = document.getElementById('userEarnings');
+  if (userEarnings) {
+    userEarnings.textContent = (earnings || 0).toFixed(2) + ' ₽';
+  }
+}
+
 function bindEvents(){
-  document.getElementById('logoutBtn').addEventListener('click',()=>{localStorage.clear();window.location.href='/login.html'});
   document.getElementById('refreshBtn').addEventListener('click',loadReviews);
   document.getElementById('statusFilter').addEventListener('change',loadReviews);
   document.getElementById('projectFilter').addEventListener('change',filterRows);

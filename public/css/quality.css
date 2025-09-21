@@ -950,3 +950,131 @@
     font-weight: 600;
     margin-bottom: 12px;
 }
+
+/* Стили для нового дизайна шапки */
+.nav-user {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.user-earnings {
+    background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+    color: white;
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-weight: 600;
+    font-size: 14px;
+    box-shadow: 0 4px 12px rgba(40, 167, 69, 0.3);
+    white-space: nowrap;
+}
+
+.user-menu {
+    position: relative;
+}
+
+.user-name {
+    color: white;
+    padding: 10px 20px;
+    font-weight: 600;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+    user-select: none;
+    background: none;
+    border: none;
+}
+
+.user-name:hover {
+    color: #f8f9fa;
+    text-decoration: underline;
+}
+
+.user-dropdown {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+    border: 1px solid #e9ecef;
+    min-width: 140px;
+    z-index: 9999;
+    overflow: hidden;
+    margin-top: 8px;
+}
+
+.dropdown-item {
+    display: block;
+    padding: 12px 16px;
+    color: #495057;
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 500;
+    transition: background-color 0.2s ease;
+    border: none;
+    background: none;
+    width: 100%;
+    text-align: left;
+    cursor: pointer;
+}
+
+.dropdown-item:hover {
+    background-color: #f8f9fa;
+    color: #212529;
+}
+
+.dropdown-item.logout-btn {
+    color: #dc3545;
+    border-top: 1px solid #e9ecef;
+}
+
+.dropdown-item.logout-btn:hover {
+    background-color: #f8d7da;
+    color: #721c24;
+}
+
+/* Анимация появления выпадающего меню */
+.user-dropdown {
+    opacity: 0;
+    transform: translateY(-10px);
+    transition: all 0.2s ease;
+    pointer-events: none;
+    display: block !important;
+}
+
+.user-dropdown.show {
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto;
+    display: block !important;
+}
+
+/* Адаптивность для мобильных устройств */
+@media (max-width: 768px) {
+    .nav-user {
+        gap: 12px;
+    }
+    
+    .user-earnings {
+        padding: 6px 12px;
+        font-size: 13px;
+    }
+    
+    .user-name {
+        padding: 8px 16px;
+        font-size: 13px;
+        background: none;
+        border: none;
+    }
+    
+    .user-dropdown {
+        min-width: 120px;
+    }
+    
+    .dropdown-item {
+        padding: 10px 14px;
+        font-size: 13px;
+    }
+}

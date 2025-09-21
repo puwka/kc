@@ -13,8 +13,14 @@
       <div class="nav-container">
         <h1 class="nav-title">CRM Колл-центра — Отдел качества</h1>
         <div class="nav-user" id="navUser" style="display: none;">
-          <a href="/profile.html" id="userName" class="user-name-link"></a>
-          <button id="logoutBtn" class="btn btn-secondary">Выйти</button>
+          <div class="user-earnings" id="userEarnings">0.00 ₽</div>
+          <div class="user-menu">
+            <div class="user-name" id="userName">Загрузка...</div>
+            <div class="user-dropdown" id="userDropdown" style="display: none; opacity: 0;">
+              <a href="/profile.html" class="dropdown-item">Профиль</a>
+              <button id="logoutBtn" class="dropdown-item logout-btn">Выйти</button>
+            </div>
+          </div>
         </div>
       </div>
     </nav>
