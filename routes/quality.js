@@ -144,6 +144,9 @@ router.get('/reviews', authenticateToken, requireQuality, async (req, res) => {
         created_at, 
         reviewed_at,
         reviewer_id,
+        locked_by,
+        locked_at,
+        is_locked,
         leads (
           id,
           name, 
@@ -154,9 +157,10 @@ router.get('/reviews', authenticateToken, requireQuality, async (req, res) => {
           comment,
           created_at,
           profiles!leads_assigned_to_fkey (name)
-        )
+        ),
+        locked_by_profile:profiles!quality_reviews_locked_by_fkey (name)
       `)
-      .eq('status', status);
+      .eq('status', status); // Показываем все заявки всем ОКК операторам
 
     // Применяем фильтры
     if (date_from) {
@@ -181,79 +185,30 @@ router.get('/reviews', authenticateToken, requireQuality, async (req, res) => {
       return res.status(500).json({ error: 'Failed to fetch reviews' });
     }
 
-    // Автоматически назначаем ОКК операторов для заявок без назначения
+    // Получаем все pending заявки (без ротации - все операторы видят все заявки)
     const reviews = data || [];
-    const unassignedReviews = reviews.filter(review => !review.reviewer_id);
     
-    if (unassignedReviews.length > 0) {
-      console.log(`📋 Найдено ${unassignedReviews.length} заявок без назначения ОКК оператора`);
-      
-      // Получаем всех ОКК операторов
-      const { data: qcUsers, error: qcError } = await supabaseAdmin
-        .from('profiles')
-        .select('id, name')
-        .eq('role', 'quality')
-        .order('created_at');
-
-      if (qcError || !qcUsers || qcUsers.length === 0) {
-        console.error('Error fetching QC users for auto-assignment:', qcError);
-      } else {
-        // Получаем статистику назначений
-        const { data: existingReviews, error: existingError } = await supabaseAdmin
-          .from('quality_reviews')
-          .select('reviewer_id')
-          .not('reviewer_id', 'is', null);
-
-        if (!existingError && existingReviews) {
-          // Подсчитываем назначения
-          const assignments = {};
-          qcUsers.forEach(user => {
-            assignments[user.id] = existingReviews.filter(r => r.reviewer_id === user.id).length;
-          });
-
-          // Назначаем заявки операторам с наименьшим количеством назначений
-          for (let i = 0; i < unassignedReviews.length; i++) {
-            const review = unassignedReviews[i];
-            
-            // Находим оператора с наименьшим количеством назначений
-            let selectedUserId = qcUsers[0].id;
-            let minAssignments = assignments[selectedUserId];
-            
-            qcUsers.forEach(user => {
-              if (assignments[user.id] < minAssignments) {
-                minAssignments = assignments[user.id];
-                selectedUserId = user.id;
-              }
-            });
-
-            // Назначаем заявку
-            const { error: assignError } = await supabaseAdmin
-              .from('quality_reviews')
-              .update({ reviewer_id: selectedUserId })
-              .eq('id', review.id);
-
-            if (assignError) {
-              console.error('Error assigning review:', assignError);
-            } else {
-              console.log(`✅ Заявка ${review.id} назначена оператору ${selectedUserId}`);
-              assignments[selectedUserId]++;
-              // Обновляем данные в ответе
-              review.reviewer_id = selectedUserId;
-            }
-          }
-        }
-      }
-    }
+    // Добавляем информацию о блокировках к каждой заявке
+    const reviewsWithLocks = reviews.map(review => {
+      const lockInfo = reviewLocks.get(review.id);
+      return {
+        ...review,
+        is_locked: !!lockInfo,
+        locked_by: lockInfo?.userId || null,
+        locked_by_name: lockInfo?.userName || null,
+        locked_at: lockInfo ? new Date(lockInfo.lockedAt).toISOString() : null
+      };
+    });
 
     // Если запрошен экспорт в CSV
     if (export_csv === 'true') {
-      const csv = generateReviewsCSV(reviews);
+      const csv = generateReviewsCSV(reviewsWithLocks);
       res.setHeader('Content-Type', 'text/csv; charset=utf-8');
       res.setHeader('Content-Disposition', 'attachment; filename="quality_reviews.csv"');
       return res.send(csv);
     }
 
-    res.json(reviews);
+    res.json(reviewsWithLocks);
   } catch (error) {
     console.error('Quality reviews error:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -364,6 +319,10 @@ ${qcComment}`;
 
     await sendToTelegram(leadInfo);
 
+    // Разблокируем заявку после одобрения
+    reviewLocks.delete(id);
+    console.log(`🔓 Заявка ${id} разблокирована после одобрения`);
+
     res.json({ 
       success: true, 
       message: 'Lead approved successfully',
@@ -422,6 +381,10 @@ router.post('/reviews/:id/reject', authenticateToken, requireQuality, async (req
       return res.status(400).json({ error: rejectionResult.error });
     }
 
+    // Разблокируем заявку после отклонения
+    reviewLocks.delete(id);
+    console.log(`🔓 Заявка ${id} разблокирована после отклонения`);
+
     res.json({ 
       success: true, 
       message: 'Lead rejected successfully'
@@ -432,109 +395,122 @@ router.post('/reviews/:id/reject', authenticateToken, requireQuality, async (req
   }
 });
 
-// ====== QC Rotation Management ======
+// ====== Lock System (In-Memory Cache) ======
 
-// GET /api/quality/rotation/stats - Получить статистику ротации ОКК
-router.get('/rotation/stats', authenticateToken, requireQuality, async (req, res) => {
+// Кэш блокировок в памяти (временное решение)
+const reviewLocks = new Map(); // reviewId -> { userId, lockedAt, userName }
+
+// Очистка старых блокировок (старше 30 минут)
+setInterval(() => {
+  const now = Date.now();
+  const thirtyMinutesAgo = now - (30 * 60 * 1000);
+  
+  for (const [reviewId, lock] of reviewLocks.entries()) {
+    if (lock.lockedAt < thirtyMinutesAgo) {
+      reviewLocks.delete(reviewId);
+      console.log(`🧹 Автоматически разблокирована заявка ${reviewId} (старше 30 минут)`);
+    }
+  }
+}, 5 * 60 * 1000); // Проверяем каждые 5 минут
+
+// POST /api/quality/reviews/:id/lock - Заблокировать заявку
+router.post('/reviews/:id/lock', authenticateToken, requireQuality, async (req, res) => {
   try {
-    // Получаем всех ОКК операторов
-    const { data: qcUsers, error: qcError } = await supabaseAdmin
-      .from('profiles')
-      .select('id, name, email, created_at')
-      .eq('role', 'quality')
-      .order('created_at');
-
-    if (qcError) {
-      console.error('Error fetching QC users:', qcError);
-      return res.status(500).json({ error: 'Failed to fetch QC users' });
-    }
-
-    if (!qcUsers || qcUsers.length === 0) {
-      return res.json({
-        success: true,
-        current_reviewer_id: null,
-        total_assignments: 0,
-        quality_users: []
-      });
-    }
-
-    // Получаем статистику назначений из quality_reviews
-    const { data: reviews, error: reviewsError } = await supabaseAdmin
-      .from('quality_reviews')
-      .select('reviewer_id, created_at')
-      .not('reviewer_id', 'is', null);
-
-    if (reviewsError) {
-      console.error('Error fetching reviews:', reviewsError);
-    }
-
-    // Подсчитываем назначения для каждого ОКК оператора
-    const assignments = {};
-    qcUsers.forEach(user => {
-      assignments[user.id] = 0;
-    });
-
-    if (reviews) {
-      reviews.forEach(review => {
-        if (assignments[review.reviewer_id] !== undefined) {
-          assignments[review.reviewer_id]++;
-        }
-      });
-    }
-
-    // Находим оператора с наименьшим количеством назначений
-    let currentReviewerId = null;
-    let minAssignments = Infinity;
+    const { id } = req.params;
+    const userId = req.user.id;
+    const userName = req.user.name || 'Неизвестный оператор';
     
-    qcUsers.forEach(user => {
-      if (assignments[user.id] < minAssignments) {
-        minAssignments = assignments[user.id];
-        currentReviewerId = user.id;
+    console.log(`🔒 Попытка блокировки заявки ${id} пользователем ${userName} (${userId})`);
+    
+    // Проверяем, не заблокирована ли уже заявка другим оператором
+    if (reviewLocks.has(id)) {
+      const existingLock = reviewLocks.get(id);
+      if (existingLock.userId !== userId) {
+        console.log(`❌ Заявка ${id} уже заблокирована оператором ${existingLock.userName}`);
+        return res.status(409).json({ 
+          error: 'Review is already locked by another operator',
+          locked_by_name: existingLock.userName
+        });
       }
-    });
-
-    // Формируем ответ
-    const qualityUsers = qcUsers.map(user => ({
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      is_current: user.id === currentReviewerId,
-      assignments: assignments[user.id] || 0
-    }));
-
-    const totalAssignments = Object.values(assignments).reduce((sum, count) => sum + count, 0);
-
-    res.json({
-      success: true,
-      current_reviewer_id: currentReviewerId,
-      total_assignments: totalAssignments,
-      quality_users: qualityUsers
-    });
-
-  } catch (error) {
-    console.error('QC rotation stats error:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-// POST /api/quality/rotation/reset - Сбросить ротацию ОКК (только для админов)
-router.post('/rotation/reset', authenticateToken, async (req, res) => {
-  try {
-    // Проверяем, что пользователь - админ
-    if (req.user.role !== 'admin') {
-      return res.status(403).json({ error: 'Only admins can reset QC rotation' });
     }
-
-    // В упрощенной версии просто возвращаем успех
-    res.json({
-      success: true,
-      message: 'QC rotation reset successfully (simplified version)'
+    
+    // Блокируем заявку
+    reviewLocks.set(id, {
+      userId: userId,
+      userName: userName,
+      lockedAt: Date.now()
+    });
+    
+    console.log(`✅ Заявка ${id} успешно заблокирована пользователем ${userName}`);
+    
+    res.json({ 
+      success: true, 
+      message: 'Review locked successfully',
+      locked_at: new Date().toISOString()
     });
   } catch (error) {
-    console.error('QC rotation reset error:', error);
+    console.error('Lock review error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
+
+// POST /api/quality/reviews/:id/unlock - Разблокировать заявку
+router.post('/reviews/:id/unlock', authenticateToken, requireQuality, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.id;
+    const userName = req.user.name || 'Неизвестный оператор';
+    
+    console.log(`🔓 Попытка разблокировки заявки ${id} пользователем ${userName} (${userId})`);
+    
+    // Проверяем, что заявка заблокирована текущим пользователем
+    if (!reviewLocks.has(id)) {
+      console.log(`❌ Заявка ${id} не заблокирована`);
+      return res.status(404).json({ error: 'Review is not locked' });
+    }
+    
+    const lock = reviewLocks.get(id);
+    if (lock.userId !== userId) {
+      console.log(`❌ Заявка ${id} заблокирована другим оператором`);
+      return res.status(403).json({ error: 'Review is not locked by you' });
+    }
+    
+    // Разблокируем заявку
+    reviewLocks.delete(id);
+    
+    console.log(`✅ Заявка ${id} успешно разблокирована пользователем ${userName}`);
+    
+    res.json({ 
+      success: true, 
+      message: 'Review unlocked successfully'
+    });
+  } catch (error) {
+    console.error('Unlock review error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET /api/quality/reviews/locks - Получить информацию о блокировках
+router.get('/reviews/locks', authenticateToken, requireQuality, async (req, res) => {
+  try {
+    const locks = {};
+    for (const [reviewId, lock] of reviewLocks.entries()) {
+      locks[reviewId] = {
+        locked_by: lock.userId,
+        locked_by_name: lock.userName,
+        locked_at: new Date(lock.lockedAt).toISOString()
+      };
+    }
+    
+    res.json({ locks });
+  } catch (error) {
+    console.error('Get locks error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ====== Helper Functions ======
+
 
 // ====== Overview for quality (analytics)
 router.get('/overview', authenticateToken, requireQuality, async (req, res) => {

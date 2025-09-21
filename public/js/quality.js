@@ -12,8 +12,12 @@ async function init(){
   bindEvents();
   loadProjects();
   loadAnalytics();
-  loadQCRotationStats();
   loadReviews();
+  
+  // Автоматическое обновление списка заявок каждые 5 секунд
+  setInterval(() => {
+    loadReviews();
+  }, 5000);
 }
 
 function setupUI(){
@@ -31,37 +35,60 @@ async function loadAnalytics(){
   }catch(e){notify(e.message,'error')}
 }
 
-async function loadQCRotationStats(){
-  try{
-    const resp=await fetch('/api/quality/rotation/stats',{headers:{'Authorization':`Bearer ${localStorage.getItem('token')}`}});
-    if(!resp.ok){throw new Error('Ошибка загрузки статистики ротации')}
-    const stats=await resp.json();
-    renderQCRotationStats(stats);
-  }catch(e){
-    console.error('Error loading QC rotation stats:', e);
-    // Не показываем ошибку пользователю, так как это не критично
+// Функции для блокировки заявок
+async function lockReview(reviewId) {
+  try {
+    const resp = await fetch(`/api/quality/reviews/${reviewId}/lock`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    const result = await resp.json();
+    
+    if (!resp.ok) {
+      if (resp.status === 409) {
+        notify(`❌ Заявка уже заблокирована оператором: ${result.locked_by_name}`, 'warning');
+      } else {
+        throw new Error(result.error || 'Ошибка блокировки заявки');
+      }
+      return;
+    }
+    
+    notify('✅ Заявка заблокирована', 'success');
+    loadReviews(); // Обновляем список
+  } catch (e) {
+    console.error('Error locking review:', e);
+    notify(`❌ Ошибка блокировки: ${e.message}`, 'error');
   }
 }
 
-function renderQCRotationStats(stats){
-  const rotationInfo=document.getElementById('qcRotationInfo');
-  const currentReviewer=document.getElementById('currentReviewer');
-  const totalAssignments=document.getElementById('totalAssignments');
-  
-  if(!stats.success||!stats.quality_users||stats.quality_users.length===0){
-    rotationInfo.style.display='none';
-    return;
+async function unlockReview(reviewId) {
+  try {
+    const resp = await fetch(`/api/quality/reviews/${reviewId}/unlock`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    const result = await resp.json();
+    
+    if (!resp.ok) {
+      throw new Error(result.error || 'Ошибка разблокировки заявки');
+    }
+    
+    notify('✅ Заявка разблокирована', 'success');
+    loadReviews(); // Обновляем список
+  } catch (e) {
+    console.error('Error unlocking review:', e);
+    notify(`❌ Ошибка разблокировки: ${e.message}`, 'error');
   }
-  
-  // Находим текущего оператора
-  const currentUser=stats.quality_users.find(user=>user.is_current);
-  const reviewerName=currentUser?currentUser.name:'Неизвестно';
-  
-  currentReviewer.textContent=reviewerName;
-  totalAssignments.textContent=`${stats.total_assignments} назначений`;
-  
-  rotationInfo.style.display='block';
 }
+
 
 function renderAnalytics(s){
   const box=document.getElementById('analyticsSection');
@@ -178,8 +205,13 @@ function renderReviews(rows){
       'rejected': 'Отклонено'
     }[r.status] || r.status;
     
+    // Проверяем статус блокировки
+    const isLocked = r.is_locked || false;
+    const lockedByName = r.locked_by_name || 'Неизвестный оператор';
+    const isLockedByMe = r.locked_by === currentUser?.id;
+    
     const card=document.createElement('div');
-    card.className='review-card';
+    card.className=`review-card ${isLocked ? 'locked' : ''}`;
     card.innerHTML=`
       <div class="review-header">
         <div class="review-lead-info">
@@ -210,14 +242,35 @@ function renderReviews(rows){
         })}
       </div>
       
+      ${isLocked ? `
+        <div class="review-locked">
+          🔒 Заблокировано: ${lockedByName}
+        </div>
+      ` : ''}
+      
       <div class="review-actions">
-        <a href="/quality-review.html?id=${r.id}" class="review-action-btn check">
-          🔍 Проверить
-        </a>
-        <button onclick="approve('${r.id}')" class="review-action-btn approve">
+        ${isLocked ? (
+          isLockedByMe ? `
+            <a href="/quality-review.html?id=${r.id}" class="review-action-btn check">
+              🔍 Проверить
+            </a>
+            <button onclick="unlockReview('${r.id}')" class="review-action-btn unlock">
+              🔓 Разблокировать
+            </button>
+          ` : `
+            <div class="review-action-btn disabled">
+              🔒 Заблокировано
+            </div>
+          `
+        ) : `
+          <button onclick="lockReview('${r.id}')" class="review-action-btn lock">
+            🔒 Заблокировать
+          </button>
+        `}
+        <button onclick="approve('${r.id}')" class="review-action-btn approve" ${isLocked && !isLockedByMe ? 'disabled' : ''}>
           ✅ Одобрить
         </button>
-        <button onclick="reject('${r.id}')" class="review-action-btn reject">
+        <button onclick="reject('${r.id}')" class="review-action-btn reject" ${isLocked && !isLockedByMe ? 'disabled' : ''}>
           ❌ Отклонить
         </button>
       </div>
