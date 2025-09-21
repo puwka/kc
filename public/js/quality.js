@@ -14,10 +14,22 @@ async function init(){
   loadAnalytics();
   loadReviews();
   
-  // Автоматическое обновление списка заявок каждые 2 секунды
-  setInterval(() => {
+// Автоматическое обновление списка заявок каждые 1.5 секунды
+setInterval(() => {
+  loadReviews();
+}, 1500);
+
+// Обновление при возврате на страницу (когда пользователь переключается между вкладками)
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) {
     loadReviews();
-  }, 2000);
+  }
+});
+
+// Обновление при фокусе на окне
+window.addEventListener('focus', () => {
+  loadReviews();
+});
 }
 
 function setupUI(){
@@ -59,7 +71,7 @@ async function lockReview(reviewId) {
     
     notify('✅ Заявка заблокирована', 'success');
     // Принудительное обновление для синхронизации с другими пользователями
-    setTimeout(() => loadReviews(true), 500);
+    setTimeout(() => loadReviews(), 500);
     setTimeout(() => loadReviews(), 1500);
   } catch (e) {
     console.error('Error locking review:', e);
@@ -84,8 +96,10 @@ async function unlockReview(reviewId) {
     }
     
     notify('✅ Заявка разблокирована', 'success');
+    // Устанавливаем флаг принудительного обновления
+    sessionStorage.setItem('forceRefreshQC', 'true');
     // Принудительное обновление для синхронизации с другими пользователями
-    setTimeout(() => loadReviews(true), 500);
+    setTimeout(() => loadReviews(), 500);
     setTimeout(() => loadReviews(), 1500);
   } catch (e) {
     console.error('Error unlocking review:', e);
@@ -176,6 +190,13 @@ async function loadReviews(showLoading = false){
   try{
     const status=document.getElementById('statusFilter').value;
     
+    // Проверяем, нужно ли принудительное обновление
+    const shouldForceRefresh = sessionStorage.getItem('forceRefreshQC');
+    if (shouldForceRefresh) {
+      sessionStorage.removeItem('forceRefreshQC');
+      showLoading = true;
+    }
+    
     // Показываем индикатор загрузки только если явно запрошено
     if (showLoading) {
       const container = document.getElementById('reviewsTableBody');
@@ -223,8 +244,11 @@ function renderReviews(rows){
     const lockedByName = r.locked_by_name || 'Неизвестный оператор';
     const isLockedByMe = currentUser && r.locked_by === currentUser.id;
     
+    // Если заявка не pending, она не должна быть заблокирована
+    const shouldBeLocked = r.status === 'pending' && isLocked;
+    
     const card=document.createElement('div');
-    card.className=`review-card ${isLocked ? 'locked' : ''}`;
+    card.className=`review-card ${shouldBeLocked ? 'locked' : ''}`;
     card.innerHTML=`
       <div class="review-header">
         <div class="review-lead-info">
@@ -255,14 +279,14 @@ function renderReviews(rows){
         })}
       </div>
       
-      ${isLocked ? `
+      ${shouldBeLocked ? `
         <div class="review-locked">
           🔒 Заблокировано: ${lockedByName}
         </div>
       ` : ''}
       
       <div class="review-actions">
-        ${isLocked ? (
+        ${shouldBeLocked ? (
           isLockedByMe ? `
             <a href="/quality-review.html?id=${r.id}" class="review-action-btn check">
               🔍 Проверить
@@ -280,10 +304,10 @@ function renderReviews(rows){
             🔒 Заблокировать
           </button>
         `}
-        <button onclick="approve('${r.id}')" class="review-action-btn approve" ${isLocked && !isLockedByMe ? 'disabled' : ''}>
+        <button onclick="approve('${r.id}')" class="review-action-btn approve" ${shouldBeLocked && !isLockedByMe ? 'disabled' : ''}>
           ✅ Одобрить
         </button>
-        <button onclick="reject('${r.id}')" class="review-action-btn reject" ${isLocked && !isLockedByMe ? 'disabled' : ''}>
+        <button onclick="reject('${r.id}')" class="review-action-btn reject" ${shouldBeLocked && !isLockedByMe ? 'disabled' : ''}>
           ❌ Отклонить
         </button>
       </div>
@@ -340,6 +364,8 @@ async function approve(id){
     if(!resp.ok){throw new Error('Не удалось одобрить')}
     const result = await resp.json();
     notify(`Одобрено! Оператору зачислено ${result.amount}₽ за проект "${result.project}"`,'success');
+    // Устанавливаем флаг принудительного обновления
+    sessionStorage.setItem('forceRefreshQC', 'true');
     // Принудительное обновление для синхронизации с другими пользователями
     setTimeout(() => loadReviews(), 500);
     setTimeout(() => loadReviews(), 1500);
@@ -352,6 +378,8 @@ async function reject(id){
     const resp=await fetch(`/api/quality/reviews/${id}/reject`,{method:'POST',headers:{'Authorization':`Bearer ${localStorage.getItem('token')}`,'Content-Type':'application/json'},body:JSON.stringify({comment})});
     if(!resp.ok){throw new Error('Не удалось отклонить')}
     notify('Отклонено','warning');
+    // Устанавливаем флаг принудительного обновления
+    sessionStorage.setItem('forceRefreshQC', 'true');
     // Принудительное обновление для синхронизации с другими пользователями
     setTimeout(() => loadReviews(), 500);
     setTimeout(() => loadReviews(), 1500);

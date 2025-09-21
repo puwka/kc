@@ -28,8 +28,11 @@ async function init() {
         bindEvents();
         
         // Автоматическая разблокировка при закрытии страницы
-        window.addEventListener('beforeunload', () => {
-            if (reviewId) {
+        let isUnlocked = false;
+        
+        const unlockReview = () => {
+            if (reviewId && !isUnlocked) {
+                isUnlocked = true;
                 // Отправляем запрос на разблокировку (не ждем ответа)
                 fetch(`/api/quality/reviews/${reviewId}/unlock`, {
                     method: 'POST',
@@ -37,9 +40,28 @@ async function init() {
                         'Authorization': `Bearer ${localStorage.getItem('token')}`,
                         'Content-Type': 'application/json'
                     }
+                }).then(() => {
+                    // Устанавливаем флаг принудительного обновления
+                    sessionStorage.setItem('forceRefreshQC', 'true');
+                    // Принудительно обновляем список заявок на главной странице
+                    if (window.opener && window.opener.loadReviews) {
+                        window.opener.loadReviews();
+                    }
                 }).catch(() => {}); // Игнорируем ошибки
             }
+        };
+        
+        // Несколько способов разблокировки для надежности
+        window.addEventListener('beforeunload', unlockReview);
+        window.addEventListener('unload', unlockReview);
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                unlockReview();
+            }
         });
+        
+        // Разблокировка при клике на кнопку "Назад" или закрытии вкладки
+        window.addEventListener('pagehide', unlockReview);
     } catch (e) {
         notify('Ошибка загрузки страницы', 'error');
     }
@@ -474,6 +496,36 @@ function bindEvents() {
     
     document.getElementById('approveBtn').addEventListener('click', () => saveDecision('approve'));
     document.getElementById('rejectBtn').addEventListener('click', () => saveDecision('reject'));
+    
+    // Обработчик для кнопки "К списку"
+    const backButton = document.querySelector('a[href="/quality.html"]');
+    if (backButton) {
+        backButton.addEventListener('click', (e) => {
+            e.preventDefault();
+            // Разблокируем заявку перед переходом
+            if (reviewId) {
+                fetch(`/api/quality/reviews/${reviewId}/unlock`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                        'Content-Type': 'application/json'
+                    }
+                }).then(() => {
+                    // Устанавливаем флаг принудительного обновления
+                    sessionStorage.setItem('forceRefreshQC', 'true');
+                    // Принудительно обновляем список заявок на главной странице
+                    if (window.opener && window.opener.loadReviews) {
+                        window.opener.loadReviews();
+                    }
+                    location.href = '/quality.html';
+                }).catch(() => {
+                    location.href = '/quality.html';
+                });
+            } else {
+                location.href = '/quality.html';
+            }
+        });
+    }
 }
 
 async function saveDecision(action) {
@@ -499,6 +551,23 @@ async function saveDecision(action) {
         }
         
         notify('Решение сохранено', 'success');
+        // Разблокируем заявку перед переходом
+        if (reviewId) {
+            fetch(`/api/quality/reviews/${reviewId}/unlock`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                    'Content-Type': 'application/json'
+                }
+            }).then(() => {
+                // Устанавливаем флаг принудительного обновления
+                sessionStorage.setItem('forceRefreshQC', 'true');
+                // Принудительно обновляем список заявок на главной странице
+                if (window.opener && window.opener.loadReviews) {
+                    window.opener.loadReviews();
+                }
+            }).catch(() => {}); // Игнорируем ошибки
+        }
         setTimeout(() => location.href = '/quality.html', 600);
     } catch (e) {
         notify(e.message, 'error');

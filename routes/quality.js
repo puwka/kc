@@ -184,15 +184,25 @@ router.get('/reviews', authenticateToken, requireQuality, async (req, res) => {
     // Получаем все pending заявки (без ротации - все операторы видят все заявки)
     const reviews = data || [];
     
+    // Очищаем старые блокировки при каждом запросе
+    cleanupOldLocks();
+    
     // Добавляем информацию о блокировках к каждой заявке
     const reviewsWithLocks = reviews.map(review => {
       const lockInfo = reviewLocks.get(review.id);
+      
+      // Если заявка уже обработана, автоматически разблокируем её
+      if (review.status !== 'pending' && lockInfo) {
+        reviewLocks.delete(review.id);
+        console.log(`🔓 Автоматически разблокирована обработанная заявка ${review.id}`);
+      }
+      
       return {
         ...review,
-        is_locked: !!lockInfo,
-        locked_by: lockInfo?.userId || null,
-        locked_by_name: lockInfo?.userName || null,
-        locked_at: lockInfo ? new Date(lockInfo.lockedAt).toISOString() : null
+        is_locked: review.status === 'pending' ? !!lockInfo : false,
+        locked_by: review.status === 'pending' ? (lockInfo?.userId || null) : null,
+        locked_by_name: review.status === 'pending' ? (lockInfo?.userName || null) : null,
+        locked_at: review.status === 'pending' ? (lockInfo ? new Date(lockInfo.lockedAt).toISOString() : null) : null
       };
     });
 
@@ -408,6 +418,19 @@ setInterval(() => {
     }
   }
 }, 5 * 60 * 1000); // Проверяем каждые 5 минут
+
+// Функция для очистки старых блокировок
+function cleanupOldLocks() {
+  const now = Date.now();
+  const fiveMinutesAgo = now - (5 * 60 * 1000);
+  
+  for (const [reviewId, lock] of reviewLocks.entries()) {
+    if (lock.lockedAt < fiveMinutesAgo) {
+      reviewLocks.delete(reviewId);
+      console.log(`🧹 Очищена старая блокировка заявки ${reviewId}`);
+    }
+  }
+}
 
 // POST /api/quality/reviews/:id/lock - Заблокировать заявку
 router.post('/reviews/:id/lock', authenticateToken, requireQuality, async (req, res) => {
