@@ -609,11 +609,23 @@ router.get('/reviews/:id', authenticateToken, requireQuality, async (req, res) =
 // Хранилище активных соединений
 const activeConnections = new Map(); // userId -> response
 
+// Обработка OPTIONS запроса для CORS
+router.options('/notifications', (req, res) => {
+  res.writeHead(200, {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, OPTIONS',
+    'Access-Control-Allow-Headers': 'Cache-Control, Authorization',
+    'Access-Control-Allow-Credentials': 'true'
+  });
+  res.end();
+});
+
 // SSE endpoint для уведомлений о блокировках
 router.get('/notifications', (req, res) => {
   // Проверяем токен из query параметра
   const token = req.query.token;
   if (!token) {
+    console.log('❌ SSE: Токен не предоставлен');
     return res.status(401).json({ error: 'Token required' });
   }
   
@@ -622,8 +634,11 @@ router.get('/notifications', (req, res) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const userId = decoded.userId;
     
+    console.log(`🔍 SSE: Валидация токена для пользователя ${userId}, роль: ${decoded.role}`);
+    
     // Проверяем роль пользователя
     if (decoded.role !== 'quality' && decoded.role !== 'admin') {
+      console.log(`❌ SSE: Недостаточно прав для пользователя ${userId}, роль: ${decoded.role}`);
       return res.status(403).json({ error: 'Insufficient permissions' });
     }
   
@@ -633,7 +648,9 @@ router.get('/notifications', (req, res) => {
     'Cache-Control': 'no-cache',
     'Connection': 'keep-alive',
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Cache-Control'
+    'Access-Control-Allow-Headers': 'Cache-Control',
+    'Access-Control-Allow-Methods': 'GET, OPTIONS',
+    'Access-Control-Allow-Credentials': 'true'
   });
   
   // Сохраняем соединение
@@ -657,14 +674,20 @@ router.get('/notifications', (req, res) => {
 
 // Функция для отправки уведомления всем операторам кроме указанного
 function broadcastToOthers(excludeUserId, data) {
+  console.log(`📡 Отправляем уведомление всем кроме ${excludeUserId}:`, data);
+  console.log(`📊 Активных соединений: ${activeConnections.size}`);
+  
   for (const [userId, res] of activeConnections.entries()) {
     if (userId !== excludeUserId) {
       try {
         res.write(`data: ${JSON.stringify(data)}\n\n`);
+        console.log(`✅ Уведомление отправлено пользователю ${userId}`);
       } catch (error) {
-        console.error(`Ошибка отправки SSE пользователю ${userId}:`, error);
+        console.error(`❌ Ошибка отправки SSE пользователю ${userId}:`, error);
         activeConnections.delete(userId);
       }
+    } else {
+      console.log(`⏭️ Пропускаем пользователя ${userId} (инициатор действия)`);
     }
   }
 }

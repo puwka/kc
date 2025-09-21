@@ -95,6 +95,23 @@ setInterval(() => {
   loadReviews();
 }, 3000);
 
+// Дополнительное обновление каждые 1 секунду для компенсации возможных проблем с SSE
+let sseWorking = false;
+let lastSSEUpdate = Date.now();
+
+setInterval(() => {
+  // Проверяем, есть ли активное SSE соединение
+  if (!window.sseConnection || window.sseConnection.readyState !== EventSource.OPEN) {
+    if (sseWorking) {
+      console.log('⚠️ SSE соединение потеряно, переключаемся на fallback');
+      sseWorking = false;
+    }
+    loadReviews();
+  } else {
+    sseWorking = true;
+  }
+}, 1000);
+
 // Автоматическое обновление аналитики каждые 5 минут
 setInterval(() => {
   loadAnalytics();
@@ -654,25 +671,31 @@ function showReviewInstantly(reviewData) {
 // Настройка Server-Sent Events для мгновенных уведомлений
 function setupSSE() {
   const token = localStorage.getItem('token');
-  if (!token) return;
+  if (!token) {
+    console.error('❌ Нет токена для SSE');
+    return;
+  }
   
+  console.log('🔌 Устанавливаем SSE соединение...');
   const eventSource = new EventSource(`/api/quality/notifications?token=${encodeURIComponent(token)}`);
   
   eventSource.onopen = function(event) {
-    console.log('🔌 SSE соединение установлено');
+    console.log('✅ SSE соединение установлено успешно');
   };
   
   eventSource.onmessage = function(event) {
+    console.log('📨 Получено SSE сообщение:', event.data);
     try {
       const data = JSON.parse(event.data);
       handleSSEMessage(data);
     } catch (error) {
-      console.error('Ошибка парсинга SSE сообщения:', error);
+      console.error('❌ Ошибка парсинга SSE сообщения:', error);
     }
   };
   
   eventSource.onerror = function(event) {
-    console.error('Ошибка SSE соединения:', event);
+    console.error('❌ Ошибка SSE соединения:', event);
+    console.log('🔍 Состояние соединения:', eventSource.readyState);
     // Переподключаемся через 5 секунд
     setTimeout(() => {
       if (eventSource.readyState === EventSource.CLOSED) {
@@ -689,10 +712,12 @@ function setupSSE() {
 // Обработка сообщений от SSE
 function handleSSEMessage(data) {
   console.log('📨 Получено SSE сообщение:', data);
+  lastSSEUpdate = Date.now();
   
   switch (data.type) {
     case 'connected':
       console.log('✅ SSE подключен для пользователя:', data.userId);
+      sseWorking = true;
       break;
       
     case 'review_locked':
@@ -711,3 +736,23 @@ function handleSSEMessage(data) {
       console.log('❓ Неизвестный тип SSE сообщения:', data.type);
   }
 }
+
+// Тестовая функция для проверки SSE (можно вызвать из консоли)
+window.testSSE = function() {
+  console.log('🧪 Тестирование SSE соединения...');
+  console.log('🔍 Текущее соединение:', window.sseConnection);
+  console.log('📊 Состояние:', window.sseConnection ? window.sseConnection.readyState : 'Нет соединения');
+  
+  if (window.sseConnection) {
+    console.log('✅ SSE соединение существует');
+    if (window.sseConnection.readyState === EventSource.OPEN) {
+      console.log('✅ Соединение активно');
+    } else {
+      console.log('❌ Соединение неактивно, переподключаемся...');
+      setupSSE();
+    }
+  } else {
+    console.log('❌ Нет SSE соединения, создаем...');
+    setupSSE();
+  }
+};
