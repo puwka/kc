@@ -2,7 +2,10 @@
 let currentUser = null;
 let profileData = null;
 let transactionsOffset = 0;
+let qcTransactionsOffset = 0;
+let qcRejectedTransactionsOffset = 0;
 let isLoadingTransactions = false;
+let currentTab = 'regular';
 
 // Инициализация приложения
 document.addEventListener('DOMContentLoaded', function() {
@@ -19,10 +22,8 @@ function initializeProfile() {
 
     // Загружаем данные профиля
     loadProfile();
-    loadProfileStats();
-    loadBalance();
-    loadEarningsStats();
-    loadTransactions();
+    loadUserEarnings(); // Загружаем заработок для шапки
+    loadTransactions(); // Загружаем обычные транзакции по умолчанию
 
     // Настройка обработчиков событий
     setupEventListeners();
@@ -37,14 +38,95 @@ function setupEventListeners() {
     document.getElementById('cancelEditBtn').addEventListener('click', hideEditForm);
     document.getElementById('profileForm').addEventListener('submit', handleProfileUpdate);
     
-    // Кнопка обновления баланса
-    document.getElementById('refreshBalanceBtn').addEventListener('click', loadBalance);
+    // Выпадающее меню пользователя
+    setupUserMenu();
     
-    // Выбор периода статистики заработка
-    document.getElementById('earningsPeriod').addEventListener('change', loadEarningsStats);
     
     // Кнопка загрузки дополнительных транзакций
     document.getElementById('loadMoreTransactions').addEventListener('click', loadMoreTransactions);
+    
+    // Обработчики вкладок
+    document.querySelectorAll('.tab-button').forEach(button => {
+        button.addEventListener('click', (e) => {
+            const tabName = e.target.getAttribute('data-tab');
+            switchTab(tabName);
+        });
+    });
+}
+
+// Настройка выпадающего меню пользователя (как на странице ОКК)
+function setupUserMenu() {
+    // Ждем пока элементы загрузятся
+    const checkElements = () => {
+        const userName = document.getElementById('userName');
+        const userDropdown = document.getElementById('userDropdown');
+        
+        if (!userName || !userDropdown) {
+            setTimeout(checkElements, 100);
+            return;
+        }
+        
+        // Удаляем все старые обработчики
+        userName.onclick = null;
+        userName.onmousedown = null;
+        userName.onmouseup = null;
+        
+        // Добавляем обработчик клика (как на странице ОКК)
+        userName.onclick = function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            if (userDropdown.style.display === 'block' || userDropdown.style.display === '') {
+                userDropdown.style.display = 'none';
+            } else {
+                userDropdown.style.display = 'block';
+            }
+        };
+        
+        // Обработчик для кнопки выхода
+        const logoutBtn = document.getElementById('logoutBtn');
+        if (logoutBtn) {
+            logoutBtn.onclick = function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                userDropdown.style.display = 'none';
+                handleLogout();
+            };
+        }
+        
+        // Обработчик клика вне меню для его закрытия
+        document.addEventListener('click', (e) => {
+            if (!userName.contains(e.target) && !userDropdown.contains(e.target)) {
+                userDropdown.style.display = 'none';
+            }
+        });
+    };
+    
+    checkElements();
+}
+
+// Загрузка заработка пользователя для шапки
+async function loadUserEarnings() {
+    try {
+        const response = await fetch('/api/balance', {
+            headers: {
+                'Authorization': `Bearer ${localStorage.getItem('token')}`
+            }
+        });
+
+        if (response.status === 401) {
+            localStorage.removeItem('token');
+            window.location.href = '/';
+            return;
+        }
+        
+        if (response.ok) {
+            const data = await response.json();
+            document.getElementById('userEarnings').textContent = `${data.balance.toFixed(2)} ₽`;
+        }
+    } catch (error) {
+        // Ошибка загрузки заработка
+    }
 }
 
 // Загрузка профиля
@@ -60,14 +142,16 @@ async function loadProfile() {
             profileData = await response.json();
             displayProfile(profileData);
         } else if (response.status === 401) {
-            // Токен недействителен
+            // Токен недействителен или истек
             localStorage.removeItem('token');
-            window.location.href = '/';
+            showNotification('Сессия истекла. Пожалуйста, войдите снова.', 'warning');
+            setTimeout(() => {
+                window.location.href = '/';
+            }, 2000);
         } else {
             showNotification('Ошибка загрузки профиля', 'error');
         }
     } catch (error) {
-        console.error('Profile load error:', error);
         showNotification('Ошибка соединения', 'error');
     }
 }
@@ -85,6 +169,13 @@ function displayProfile(profile) {
     document.getElementById('profileRoleValue').textContent = getRoleText(profile.role);
     document.getElementById('profileCreatedValue').textContent = formatDate(profile.created_at);
 
+    // Обновляем шапку
+    document.getElementById('userName').textContent = profile.name;
+    document.getElementById('navUser').style.display = 'flex';
+    
+    // Настраиваем выпадающее меню после загрузки профиля
+    setTimeout(setupUserMenu, 100);
+
     // Сохраняем данные пользователя
     currentUser = {
         id: profile.id,
@@ -94,61 +185,6 @@ function displayProfile(profile) {
     };
 }
 
-// Загрузка статистики профиля
-async function loadProfileStats() {
-    try {
-        const response = await fetch('/api/profile/stats', {
-            headers: {
-                'Authorization': `Bearer ${localStorage.getItem('token')}`
-            }
-        });
-
-        if (response.ok) {
-            const stats = await response.json();
-            displayProfileStats(stats);
-        } else {
-            console.error('Stats load error:', response.status);
-        }
-    } catch (error) {
-        console.error('Stats load error:', error);
-    }
-}
-
-// Отображение статистики профиля
-function displayProfileStats(stats) {
-    const statsGrid = document.getElementById('profileStats');
-    
-    let statsHTML = `
-        <div class="stat-card">
-            <h3>${stats.total}</h3>
-            <p>Всего лидов</p>
-        </div>
-        <div class="stat-card">
-            <h3>${stats.called}</h3>
-            <p>Прозвонено</p>
-        </div>
-        <div class="stat-card">
-            <h3>${stats.success}</h3>
-            <p>Успешных</p>
-        </div>
-        <div class="stat-card">
-            <h3>${stats.conversion_rate}%</h3>
-            <p>Конверсия</p>
-        </div>
-    `;
-
-    // Добавляем заработок только для операторов
-    if (currentUser && currentUser.role === 'operator') {
-        statsHTML += `
-            <div class="stat-card">
-                <h3>${stats.earnings} ₽</h3>
-                <p>Заработок</p>
-            </div>
-        `;
-    }
-
-    statsGrid.innerHTML = statsHTML;
-}
 
 // Показать форму редактирования
 function showEditForm() {
@@ -191,6 +227,9 @@ async function handleProfileUpdate(e) {
             displayProfile(profileData);
             hideEditForm();
             showNotification('Профиль обновлен', 'success');
+        } else if (response.status === 401) {
+            localStorage.removeItem('token');
+            window.location.href = '/';
         } else {
             showNotification(data.error, 'error');
         }
@@ -220,87 +259,29 @@ function formatDate(dateString) {
     return date.toLocaleDateString('ru-RU') + ' ' + date.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
 }
 
-// Загрузка баланса
-async function loadBalance() {
-    try {
-        const response = await fetch('/api/balance/balance', {
-            headers: {
-                'Authorization': `Bearer ${localStorage.getItem('token')}`
-            }
-        });
 
-        if (!response.ok) {
-            throw new Error('Ошибка загрузки баланса');
-        }
-
-        const balance = await response.json();
-        
-        // Обновляем отображение баланса
-        document.getElementById('currentBalance').textContent = `${balance.balance.toFixed(2)} ₽`;
-        document.getElementById('totalEarned').textContent = `${balance.total_earned.toFixed(2)} ₽`;
-
-    } catch (error) {
-        console.error('Ошибка загрузки баланса:', error);
-        showNotification('Ошибка загрузки баланса', 'error');
-    }
-}
-
-// Загрузка статистики заработка
-async function loadEarningsStats() {
-    try {
-        const period = document.getElementById('earningsPeriod').value;
-        
-        const response = await fetch(`/api/balance/earnings-stats?period=${period}`, {
-            headers: {
-                'Authorization': `Bearer ${localStorage.getItem('token')}`
-            }
-        });
-
-        if (!response.ok) {
-            throw new Error('Ошибка загрузки статистики заработка');
-        }
-
-        const stats = await response.json();
-        displayEarningsStats(stats);
-
-    } catch (error) {
-        console.error('Ошибка загрузки статистики заработка:', error);
-        showNotification('Ошибка загрузки статистики заработка', 'error');
-    }
-}
-
-// Отображение статистики заработка
-function displayEarningsStats(stats) {
-    const container = document.getElementById('earningsStats');
+// Переключение вкладок
+function switchTab(tabName) {
+    // Обновляем активную вкладку
+    document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
     
-    const periodLabels = {
-        'day': 'За день',
-        'week': 'За неделю', 
-        'month': 'За месяц',
-        'year': 'За год'
-    };
-
-    container.innerHTML = `
-        <div class="earnings-stat-card">
-            <div class="earnings-stat-value">${stats.total_earned.toFixed(2)} ₽</div>
-            <div class="earnings-stat-label">Заработано за ${periodLabels[stats.period]}</div>
-        </div>
-        <div class="earnings-stat-card">
-            <div class="earnings-stat-value">${stats.total_bonuses.toFixed(2)} ₽</div>
-            <div class="earnings-stat-label">Бонусы</div>
-        </div>
-        <div class="earnings-stat-card">
-            <div class="earnings-stat-value">${stats.transactions_count}</div>
-            <div class="earnings-stat-label">Транзакций</div>
-        </div>
-        <div class="earnings-stat-card">
-            <div class="earnings-stat-value">${stats.total_penalties.toFixed(2)} ₽</div>
-            <div class="earnings-stat-label">Штрафы</div>
-        </div>
-    `;
+    document.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
+    document.getElementById(`${tabName}-tab`).classList.add('active');
+    
+    currentTab = tabName;
+    
+    // Загружаем данные для активной вкладки
+    if (tabName === 'regular') {
+        loadTransactions(true);
+    } else if (tabName === 'qc-approved') {
+        loadQcTransactions(true);
+    } else if (tabName === 'qc-rejected') {
+        loadQcRejectedTransactions(true);
+    }
 }
 
-// Загрузка транзакций
+// Загрузка обычных транзакций
 async function loadTransactions(reset = true) {
     if (isLoadingTransactions) return;
     
@@ -309,15 +290,21 @@ async function loadTransactions(reset = true) {
         
         if (reset) {
             transactionsOffset = 0;
-            document.getElementById('transactionsTableBody').innerHTML = '';
+            document.getElementById('regularTransactionsTableBody').innerHTML = '';
         }
         
-        const response = await fetch(`/api/balance/transactions?limit=20&offset=${transactionsOffset}`, {
+        const response = await fetch(`/api/balance/transactions?limit=5&offset=${transactionsOffset}&type=regular`, {
             headers: {
                 'Authorization': `Bearer ${localStorage.getItem('token')}`
             }
         });
 
+        if (response.status === 401) {
+            localStorage.removeItem('token');
+            window.location.href = '/';
+            return;
+        }
+        
         if (!response.ok) {
             throw new Error('Ошибка загрузки транзакций');
         }
@@ -328,8 +315,87 @@ async function loadTransactions(reset = true) {
         transactionsOffset += transactions.length;
 
     } catch (error) {
-        console.error('Ошибка загрузки транзакций:', error);
         showNotification('Ошибка загрузки транзакций', 'error');
+    } finally {
+        isLoadingTransactions = false;
+    }
+}
+
+// Загрузка ОКК транзакций
+async function loadQcTransactions(reset = true) {
+    if (isLoadingTransactions) return;
+    
+    try {
+        isLoadingTransactions = true;
+        
+        if (reset) {
+            qcTransactionsOffset = 0;
+            document.getElementById('qcTransactionsTableBody').innerHTML = '';
+        }
+        
+        const response = await fetch(`/api/balance/transactions?limit=5&offset=${qcTransactionsOffset}&type=qc-approved`, {
+            headers: {
+                'Authorization': `Bearer ${localStorage.getItem('token')}`
+            }
+        });
+
+        if (response.status === 401) {
+            localStorage.removeItem('token');
+            window.location.href = '/';
+            return;
+        }
+        
+        if (!response.ok) {
+            throw new Error('Ошибка загрузки ОКК транзакций');
+        }
+
+        const transactions = await response.json();
+        displayQcTransactions(transactions, reset);
+        
+        qcTransactionsOffset += transactions.length;
+
+    } catch (error) {
+        showNotification('Ошибка загрузки ОКК транзакций', 'error');
+    } finally {
+        isLoadingTransactions = false;
+    }
+}
+
+// Загрузка отклоненных ОКК транзакций
+async function loadQcRejectedTransactions(reset = true) {
+    if (isLoadingTransactions) return;
+    
+    try {
+        isLoadingTransactions = true;
+        
+        if (reset) {
+            qcRejectedTransactionsOffset = 0;
+            document.getElementById('qcRejectedTransactionsTableBody').innerHTML = '';
+        }
+        
+        const response = await fetch(`/api/balance/transactions?limit=5&offset=${qcRejectedTransactionsOffset}&type=qc-rejected`, {
+            headers: {
+                'Authorization': `Bearer ${localStorage.getItem('token')}`
+            }
+        });
+
+        if (response.status === 401) {
+            localStorage.removeItem('token');
+            window.location.href = '/';
+            return;
+        }
+        
+        if (!response.ok) {
+            throw new Error('Ошибка загрузки отклоненных ОКК транзакций');
+        }
+
+        const transactions = await response.json();
+        displayQcRejectedTransactions(transactions, reset);
+        
+        qcRejectedTransactionsOffset += transactions.length;
+
+    } catch (error) {
+        showNotification('Ошибка загрузки отклоненных ОКК транзакций', 'error');
     } finally {
         isLoadingTransactions = false;
     }
@@ -337,12 +403,113 @@ async function loadTransactions(reset = true) {
 
 // Загрузка дополнительных транзакций
 async function loadMoreTransactions() {
-    await loadTransactions(false);
+    if (isLoadingTransactions) return;
+    
+    try {
+        isLoadingTransactions = true;
+        
+        if (currentTab === 'regular') {
+            await loadMoreRegularTransactions();
+        } else if (currentTab === 'qc-approved') {
+            await loadMoreQcTransactions();
+        } else if (currentTab === 'qc-rejected') {
+            await loadMoreQcRejectedTransactions();
+        }
+    } finally {
+        isLoadingTransactions = false;
+    }
 }
 
-// Отображение транзакций
+// Загрузка дополнительных обычных транзакций
+async function loadMoreRegularTransactions() {
+    try {
+        const response = await fetch(`/api/balance/transactions?limit=20&offset=${transactionsOffset}&type=regular`, {
+            headers: {
+                'Authorization': `Bearer ${localStorage.getItem('token')}`
+            }
+        });
+
+        if (response.status === 401) {
+            localStorage.removeItem('token');
+            window.location.href = '/';
+            return;
+        }
+        
+        if (!response.ok) {
+            throw new Error('Ошибка загрузки дополнительных транзакций');
+        }
+
+        const transactions = await response.json();
+        displayTransactions(transactions, false);
+        
+        transactionsOffset += transactions.length;
+
+    } catch (error) {
+        showNotification('Ошибка загрузки дополнительных транзакций', 'error');
+    }
+}
+
+// Загрузка дополнительных ОКК транзакций
+async function loadMoreQcTransactions() {
+    try {
+        const response = await fetch(`/api/balance/transactions?limit=20&offset=${qcTransactionsOffset}&type=qc-approved`, {
+            headers: {
+                'Authorization': `Bearer ${localStorage.getItem('token')}`
+            }
+        });
+
+        if (response.status === 401) {
+            localStorage.removeItem('token');
+            window.location.href = '/';
+            return;
+        }
+        
+        if (!response.ok) {
+            throw new Error('Ошибка загрузки дополнительных ОКК транзакций');
+        }
+
+        const transactions = await response.json();
+        displayQcTransactions(transactions, false);
+        
+        qcTransactionsOffset += transactions.length;
+
+    } catch (error) {
+        showNotification('Ошибка загрузки дополнительных ОКК транзакций', 'error');
+    }
+}
+
+// Загрузка дополнительных отклоненных ОКК транзакций
+async function loadMoreQcRejectedTransactions() {
+    try {
+        const response = await fetch(`/api/balance/transactions?limit=20&offset=${qcRejectedTransactionsOffset}&type=qc-rejected`, {
+            headers: {
+                'Authorization': `Bearer ${localStorage.getItem('token')}`
+            }
+        });
+
+        if (response.status === 401) {
+            localStorage.removeItem('token');
+            window.location.href = '/';
+            return;
+        }
+        
+        if (!response.ok) {
+            throw new Error('Ошибка загрузки дополнительных отклоненных ОКК транзакций');
+        }
+
+        const transactions = await response.json();
+        displayQcRejectedTransactions(transactions, false);
+        
+        qcRejectedTransactionsOffset += transactions.length;
+
+    } catch (error) {
+        showNotification('Ошибка загрузки дополнительных отклоненных ОКК транзакций', 'error');
+    }
+}
+
+// Отображение обычных транзакций
 function displayTransactions(transactions, reset = true) {
-    const tbody = document.getElementById('transactionsTableBody');
+    const tbody = document.getElementById('regularTransactionsTableBody');
     
     if (reset) {
         tbody.innerHTML = '';
@@ -372,6 +539,137 @@ function displayTransactions(transactions, reset = true) {
             <td><span class="transaction-type ${transaction.transaction_type}">${typeLabels[transaction.transaction_type] || transaction.transaction_type}</span></td>
             <td>${transaction.description}</td>
             <td><span class="transaction-amount ${isPositive ? 'positive' : 'negative'}">${isPositive ? '+' : ''}${amount.toFixed(2)} ₽</span></td>
+        `;
+        
+        tbody.appendChild(row);
+    });
+}
+
+// Отображение ОКК транзакций
+function displayQcTransactions(transactions, reset = true) {
+    const tbody = document.getElementById('qcTransactionsTableBody');
+    
+    if (reset) {
+        tbody.innerHTML = '';
+    }
+    
+    if (transactions.length === 0 && reset) {
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: #666;">ОКК транзакций пока нет</td></tr>';
+        return;
+    }
+
+    transactions.forEach(transaction => {
+        const row = document.createElement('tr');
+        
+        const typeLabels = {
+            'earned': 'Заработано',
+            'bonus': 'Бонус',
+            'penalty': 'Штраф',
+            'withdrawal': 'Выплата',
+            'adjustment': 'Корректировка'
+        };
+        
+        const amount = parseFloat(transaction.amount);
+        const isPositive = amount >= 0;
+        
+        // Форматируем комментарии
+        const operatorComment = transaction.operator_comment || '';
+        const qcComment = transaction.qc_comment || '';
+        const qcStatus = transaction.qc_status || '';
+        
+        // Статус ОКК с иконкой
+        const qcStatusHTML = qcStatus === 'approved' 
+            ? '<span class="qc-status approved">✅ Одобрено</span>'
+            : qcStatus === 'rejected'
+            ? '<span class="qc-status rejected">❌ Отклонено</span>'
+            : '<span class="qc-status unknown">❓ Неизвестно</span>';
+        
+        const operatorCommentHTML = operatorComment && operatorComment.trim() !== ''
+            ? `<div class="comment-wrapper">
+                <div class="comment-label">Оператор:</div>
+                <div class="comment-operator">${operatorComment}</div>
+               </div>`
+            : '<div class="comment-wrapper"><div class="comment-empty">Нет комментария оператора</div></div>';
+            
+        const qcCommentHTML = qcComment && qcComment.trim() !== ''
+            ? `<div class="comment-wrapper">
+                <div class="comment-label qc-label">ОКК:</div>
+                <div class="comment-qc">${qcComment}</div>
+               </div>`
+            : '<div class="comment-wrapper"><div class="comment-empty">Нет комментария ОКК</div></div>';
+        
+        row.innerHTML = `
+            <td class="date-cell">${formatDate(transaction.created_at)}</td>
+            <td class="type-cell"><span class="transaction-type ${transaction.transaction_type}">${typeLabels[transaction.transaction_type] || transaction.transaction_type}</span></td>
+            <td class="description-cell">${transaction.description}</td>
+            <td class="amount-cell"><span class="transaction-amount ${isPositive ? 'positive' : 'negative'}">${isPositive ? '+' : ''}${amount.toFixed(2)} ₽</span></td>
+            <td class="comment-cell">${operatorCommentHTML}</td>
+            <td class="comment-cell">${qcCommentHTML}</td>
+            <td class="status-cell">${qcStatusHTML}</td>
+        `;
+        
+        tbody.appendChild(row);
+    });
+}
+
+// Отображение отклоненных ОКК транзакций
+function displayQcRejectedTransactions(transactions, reset = true) {
+    const tbody = document.getElementById('qcRejectedTransactionsTableBody');
+    
+    if (reset) {
+        tbody.innerHTML = '';
+    }
+    
+    if (transactions.length === 0 && reset) {
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: #666;">Отклоненных ОКК лидов пока нет</td></tr>';
+        return;
+    }
+
+    transactions.forEach(transaction => {
+        const row = document.createElement('tr');
+        
+        const typeLabels = {
+            'earned': 'Заработано',
+            'bonus': 'Бонус',
+            'penalty': 'Штраф',
+            'withdrawal': 'Выплата',
+            'adjustment': 'Корректировка',
+            'rejected': 'Отклонено'
+        };
+        
+        const amount = parseFloat(transaction.amount);
+        const isPositive = amount >= 0;
+        
+        // Форматируем комментарии
+        const operatorComment = transaction.operator_comment || '';
+        const qcComment = transaction.qc_comment || '';
+        const qcStatus = transaction.qc_status || '';
+        
+        // Статус ОКК с иконкой (всегда отклонено)
+        const qcStatusHTML = '<span class="qc-status rejected">❌ Отклонено</span>';
+        
+        const operatorCommentHTML = operatorComment && operatorComment.trim() !== ''
+            ? `<div class="comment-wrapper">
+                <div class="comment-label">Оператор:</div>
+                <div class="comment-operator">${operatorComment}</div>
+               </div>`
+            : '<div class="comment-wrapper"><div class="comment-empty">Нет комментария оператора</div></div>';
+            
+        const qcCommentHTML = qcComment && qcComment.trim() !== ''
+            ? `<div class="comment-wrapper">
+                <div class="comment-label qc-label">ОКК:</div>
+                <div class="comment-qc">${qcComment}</div>
+               </div>`
+            : '<div class="comment-wrapper"><div class="comment-empty">Нет комментария ОКК</div></div>';
+        
+        row.innerHTML = `
+            <td class="date-cell">${formatDate(transaction.created_at)}</td>
+            <td class="type-cell"><span class="transaction-type ${transaction.transaction_type}">${typeLabels[transaction.transaction_type] || transaction.transaction_type}</span></td>
+            <td class="description-cell">${transaction.description}</td>
+            <td class="amount-cell"><span class="transaction-amount ${isPositive ? 'positive' : 'negative'}">${isPositive ? '+' : ''}${amount.toFixed(2)} ₽</span></td>
+            <td class="comment-cell">${operatorCommentHTML}</td>
+            <td class="comment-cell">${qcCommentHTML}</td>
+            <td class="status-cell">${qcStatusHTML}</td>
         `;
         
         tbody.appendChild(row);

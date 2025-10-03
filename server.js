@@ -12,6 +12,7 @@ const adminRoutes = require('./routes/admin');
 const qualityRoutes = require('./routes/quality');
 const balanceRoutes = require('./routes/balance');
 const scriptsRoutes = require('./routes/scripts');
+const telephonyRoutes = require('./routes/telephony');
 const { authenticateToken } = require('./middleware/auth');
 
 const app = express();
@@ -32,6 +33,7 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/quality', qualityRoutes);
 app.use('/api/balance', balanceRoutes);
 app.use('/api/scripts', authenticateToken, scriptsRoutes);
+app.use('/api/telephony', telephonyRoutes);
 
 // Serve static files
 app.get('/', (req, res) => {

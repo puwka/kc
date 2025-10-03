@@ -13,12 +13,17 @@
             <div class="nav-container">
                 <h1 class="nav-title">CRM Колл-центра</h1>
                 <div class="nav-user" id="navUser" style="display: none;">
-                    <a href="/profile.html" id="userName" class="user-name-link"></a>
-                    <span id="userRole" class="user-role"></span>
-                    <a href="/quality.html" id="qualityLink" class="btn btn-outline" style="display:none;">Отдел качества</a>
-                    <a href="/admin.html" id="adminLink" class="btn btn-outline" style="display: none;">Админ панель</a>
-                    <a href="/scripts.html" id="scriptsLink" class="btn btn-outline" style="display: none;">Скрипты</a>
-                    <button id="logoutBtn" class="btn btn-secondary">Выйти</button>
+                    <div class="user-earnings" id="userEarnings">0.00 ₽</div>
+                    <div class="user-menu">
+                        <div class="user-name" id="userName">Загрузка...</div>
+                        <div class="user-dropdown" id="userDropdown" style="display: none;">
+                            <a href="/profile.html" class="dropdown-item">Профиль</a>
+                            <a href="/quality.html" id="qualityLink" class="dropdown-item" style="display:none;">Отдел качества</a>
+                            <a href="/admin.html" id="adminLink" class="dropdown-item" style="display: none;">Админ панель</a>
+                            <a href="/scripts.html" id="scriptsLink" class="dropdown-item" style="display: none;">Скрипты</a>
+                            <button id="logoutBtn" class="dropdown-item logout-btn">Выйти</button>
+                        </div>
+                    </div>
                 </div>
             </div>
         </nav>
@@ -43,18 +48,51 @@
                         <div class="loader-spinner"></div>
                         <div class="loader-text">Загрузка...</div>
                     </div>
-                    <!-- Аналитика -->
-                    <div class="analytics-section">
-                        <div class="section-header">
-                            <h2>Аналитика</h2>
-                            <button id="callBtn" class="btn btn-success" style="display: none;">📞 Звонить</button>
+
+                    <!-- Основной контент в две колонки -->
+                    <div class="main-layout">
+                        <!-- Левая колонка - Аналитика -->
+                        <div class="analytics-column">
+                            <div class="analytics-grid" id="analyticsGrid">
+                                <!-- 6 карточек аналитики будут загружены динамически -->
+                            </div>
                         </div>
-                        <div class="stats-grid" id="statsGrid">
-                            <!-- Статистика будет загружена динамически -->
+
+                        <!-- Правая колонка - Информация об операторе -->
+                        <div class="operator-info-column">
+                            <div class="operator-info-card">
+                                <div class="operator-name" id="operatorName">Загрузка...</div>
+                                <div class="operator-id" id="operatorId">-</div>
+                                <div class="operator-badge" id="operatorBadge">Оператор</div>
+                                <div class="operator-login">
+                                    <div class="login-label">Логин</div>
+                                    <div class="login-field" id="operatorLogin">-</div>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
-                    <!-- Воронка (только для супервайзеров и админов) -->
+                    <!-- Разделительная линия -->
+                    <div class="divider-line"></div>
+
+                    <!-- Нижняя секция - Управление очередью -->
+                    <div class="queue-section">
+                        <div class="queue-controls">
+                            <button id="operatorCallBtn" class="btn btn-success queue-btn" disabled>
+                                <span class="btn-icon">📞</span>
+                                Встать в очередь
+                            </button>
+                        </div>
+                        <div class="auto-queue-option">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="autoCallCheckbox">
+                                <span class="checkmark"></span>
+                                Автоматически вставать в очередь, после обработанной заявки?
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Скрытые секции для других ролей -->
                     <div class="funnel-section" id="funnelSection" style="display: none;">
                         <h2>Воронка продаж</h2>
                         <div class="funnel-chart" id="funnelChart">
@@ -62,14 +100,12 @@
                         </div>
                     </div>
 
-                    <!-- Управление лидами (только для супервайзеров и админов) -->
                     <div class="leads-section" id="leadsSection" style="display: none;">
                         <div class="section-header">
                             <h2>Лиды</h2>
                             <button id="addLeadBtn" class="btn btn-primary">Добавить лида</button>
                         </div>
 
-                        <!-- Фильтры -->
                         <div class="filters">
                             <select id="statusFilter">
                                 <option value="">Все статусы</option>
@@ -81,7 +117,6 @@
                             <button id="refreshBtn" class="btn btn-secondary">Обновить</button>
                         </div>
 
-                        <!-- Таблица лидов -->
                         <div class="table-container">
                             <table class="leads-table" id="leadsTable">
                                 <thead>
@@ -99,34 +134,6 @@
                                     <!-- Данные будут загружены динамически -->
                                 </tbody>
                             </table>
-                        </div>
-                    </div>
-
-                    <!-- Панель оператора -->
-                    <div class="operator-panel" id="operatorPanel" style="display: none;">
-                        <div class="call-section">
-                            <div class="call-info">
-                                <h3>Готов к работе</h3>
-                                <p>Нажмите кнопку "Звонить" для начала работы с лидами</p>
-                            </div>
-                            
-                            <div class="call-controls">
-                                <button id="operatorCallBtn" class="btn btn-success call-btn" disabled>
-                                    📞 Звонить
-                                </button>
-                                
-                                <button id="cancelCallBtn" class="btn btn-danger call-btn" style="display: none;">
-                                    ❌ Отменить
-                                </button>
-                                
-                                <div class="auto-call-option">
-                                    <label class="checkbox-label">
-                                        <input type="checkbox" id="autoCallCheckbox">
-                                        <span class="checkmark"></span>
-                                        Автоматически звонить следующему лиду после завершения обработки
-                                    </label>
-                                </div>
-                            </div>
                         </div>
                     </div>
                 </div>
@@ -201,6 +208,27 @@
 
         <!-- Уведомления -->
         <div id="notifications" class="notifications"></div>
+        
+        <!-- Уведомление о поиске заявки -->
+        <div id="queueNotification" class="queue-notification" style="display: none;">
+            <div class="notification-content">
+                <div class="notification-icon">⏳</div>
+                <div class="notification-text">
+                    <div class="notification-title">Поиск заявки...</div>
+                    <div class="notification-timer">Время в очереди: <span id="queueTimer">00:00</span></div>
+                </div>
+                <button id="cancelQueueBtn" class="cancel-queue-btn">✕</button>
+            </div>
+        </div>
+        
+        <!-- Анимация перехода на страницу лида -->
+        <div id="pageTransition" class="page-transition">
+            <div class="transition-content">
+                <div class="transition-icon">📞</div>
+                <div class="transition-text">Переход к лиду</div>
+                <div class="transition-subtext">Подготовка к звонку...</div>
+            </div>
+        </div>
     </div>
 
     <script src="js/app.js"></script>

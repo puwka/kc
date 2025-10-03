@@ -66,12 +66,6 @@
             color: #333;
         }
         
-        .stats-section {
-            background: white;
-            border-radius: 10px;
-            padding: 2rem;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        }
         
         .back-btn {
             background: #6c757d;
@@ -109,85 +103,13 @@
             flex: 1;
         }
         
-        /* Баланс */
-        .balance-section, .earnings-section, .transactions-section {
+        /* История транзакций */
+        .transactions-section {
             background: white;
             border-radius: 10px;
             padding: 2rem;
             box-shadow: 0 2px 10px rgba(0,0,0,0.1);
             margin-bottom: 2rem;
-        }
-        
-        .balance-cards {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 1rem;
-            margin-top: 1rem;
-        }
-        
-        .balance-card {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 1.5rem;
-            border-radius: 10px;
-            display: flex;
-            align-items: center;
-            gap: 1rem;
-        }
-        
-        .balance-icon {
-            font-size: 2rem;
-            opacity: 0.8;
-        }
-        
-        .balance-info {
-            flex: 1;
-        }
-        
-        .balance-label {
-            font-size: 0.9rem;
-            opacity: 0.8;
-            margin-bottom: 0.5rem;
-        }
-        
-        .balance-value {
-            font-size: 1.5rem;
-            font-weight: bold;
-        }
-        
-        /* Статистика заработка */
-        .period-select {
-            padding: 0.5rem 1rem;
-            border: 2px solid #e1e8ed;
-            border-radius: 6px;
-            background: white;
-            font-size: 0.9rem;
-        }
-        
-        .earnings-stats {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 1rem;
-            margin-top: 1rem;
-        }
-        
-        .earnings-stat-card {
-            background: #f8f9fa;
-            padding: 1rem;
-            border-radius: 8px;
-            text-align: center;
-        }
-        
-        .earnings-stat-value {
-            font-size: 1.2rem;
-            font-weight: bold;
-            color: #2c3e50;
-            margin-bottom: 0.5rem;
-        }
-        
-        .earnings-stat-label {
-            font-size: 0.9rem;
-            color: #666;
         }
         
         /* Таблица транзакций */
@@ -196,35 +118,76 @@
             border-radius: 8px;
             border: 1px solid #e1e8ed;
             margin-top: 1rem;
+            max-width: 100%;
         }
         
         .transactions-table {
             width: 100%;
             border-collapse: collapse;
             background: white;
+            table-layout: fixed;
         }
         
         .transactions-table th,
         .transactions-table td {
-            padding: 12px;
+            padding: 8px;
             text-align: left;
             border-bottom: 1px solid #e1e8ed;
+            overflow: hidden;
+        }
+        
+        /* Адаптивные ширины колонок */
+        .transactions-table th:nth-child(1),
+        .transactions-table td:nth-child(1) {
+            width: 100px; /* Дата */
+        }
+        
+        .transactions-table th:nth-child(2),
+        .transactions-table td:nth-child(2) {
+            width: 80px; /* Тип */
+        }
+        
+        .transactions-table th:nth-child(3),
+        .transactions-table td:nth-child(3) {
+            width: 250px; /* Описание */
+        }
+        
+        .transactions-table th:nth-child(4),
+        .transactions-table td:nth-child(4) {
+            width: 80px; /* Сумма */
+        }
+        
+        .transactions-table th:nth-child(5),
+        .transactions-table td:nth-child(5) {
+            width: 180px; /* Комментарий оператора */
+        }
+        
+        .transactions-table th:nth-child(6),
+        .transactions-table td:nth-child(6) {
+            width: 180px; /* Комментарий ОКК */
         }
         
         .transactions-table th {
             background: #f8f9fa;
             font-weight: 600;
             color: #2c3e50;
-            font-size: 0.9rem;
+            font-size: 0.8rem;
         }
         
         .transactions-table td {
             color: #2c3e50;
-            font-size: 0.9rem;
+            font-size: 0.8rem;
         }
         
         .transactions-table tr:hover {
-            background: #f8f9fa;
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            transform: translateY(-1px);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            transition: all 0.2s ease;
+        }
+        
+        .transactions-table tr {
+            transition: all 0.2s ease;
         }
         
         .transaction-type {
@@ -260,6 +223,11 @@
             color: #383d41;
         }
         
+        .transaction-type.rejected {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        
         .transaction-amount {
             font-weight: 600;
         }
@@ -272,6 +240,40 @@
             color: #dc3545;
         }
         
+        /* Статус ОКК */
+        .status-cell {
+            width: 120px;
+            text-align: center;
+            padding: 8px;
+        }
+        
+        .qc-status {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            text-align: center;
+        }
+        
+        .qc-status.approved {
+            background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .qc-status.rejected {
+            background: linear-gradient(135deg, #f8d7da 0%, #f5c6cb 100%);
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .qc-status.unknown {
+            background: linear-gradient(135deg, #e2e3e5 0%, #d6d8db 100%);
+            color: #383d41;
+            border: 1px solid #d6d8db;
+        }
+        
         .loading-indicator {
             text-align: center;
             padding: 1rem;
@@ -279,20 +281,355 @@
             font-style: italic;
         }
         
-        /* Адаптивность */
+        /* Стили для выпадающего меню пользователя */
+        .user-menu {
+            position: relative;
+        }
+
+        .user-name {
+            color: white;
+            padding: 10px 20px;
+            font-weight: 600;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            border-radius: 8px;
+        }
+
+        .user-name:hover {
+            color: rgba(255, 255, 255, 0.8);
+        }
+
+        .user-dropdown {
+            position: absolute;
+            top: 100%;
+            right: 0;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+            border: 1px solid #e9ecef;
+            min-width: 180px;
+            z-index: 10001;
+            overflow: hidden;
+            margin-top: 8px;
+        }
+
+        .dropdown-item {
+            display: block;
+            padding: 12px 16px;
+            color: #495057;
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 500;
+            transition: background-color 0.2s ease;
+            border: none;
+            background: none;
+            width: 100%;
+            text-align: left;
+            cursor: pointer;
+        }
+
+        .dropdown-item:hover {
+            background-color: #f8f9fa;
+            color: #212529;
+        }
+
+        .dropdown-item.logout-btn {
+            color: #dc3545;
+            border-top: 1px solid #e9ecef;
+        }
+
+        .dropdown-item.logout-btn:hover {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+
+
+        .user-earnings {
+            color: white;
+            font-weight: 600;
+            font-size: 16px;
+            background: rgba(255, 255, 255, 0.1);
+            padding: 8px 16px;
+            border-radius: 8px;
+            backdrop-filter: blur(10px);
+        }
+
+        /* Адаптивность для мобильных устройств */
         @media (max-width: 768px) {
-            .balance-cards {
-                grid-template-columns: 1fr;
+            .nav-user {
+                gap: 12px;
             }
             
-            .earnings-stats {
-                grid-template-columns: 1fr;
+            .user-earnings {
+                font-size: 14px;
+                padding: 6px 12px;
             }
+            
+            .user-name {
+                padding: 8px 16px;
+                font-size: 13px;
+            }
+            
+            .user-dropdown {
+                min-width: 160px;
+            }
+            
+            .dropdown-item {
+                padding: 10px 14px;
+                font-size: 13px;
+            }
+        }
+        
+        /* Вкладки */
+        .tabs-container {
+            margin-top: 1rem;
+        }
+        
+        .tabs {
+            display: flex;
+            border-bottom: 2px solid #e1e8ed;
+            margin-bottom: 1rem;
+        }
+        
+        .tab-button {
+            background: none;
+            border: none;
+            padding: 12px 24px;
+            cursor: pointer;
+            font-size: 1rem;
+            color: #666;
+            border-bottom: 3px solid transparent;
+            transition: all 0.3s ease;
+        }
+        
+        .tab-button:hover {
+            color: #333;
+            background: #f8f9fa;
+        }
+        
+        .tab-button.active {
+            color: #667eea;
+            border-bottom-color: #667eea;
+            font-weight: 600;
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        /* Комментарии в таблице */
+        .comment-cell {
+            width: 180px;
+            max-width: 180px;
+            min-width: 160px;
+            word-wrap: break-word;
+            word-break: break-word;
+            overflow-wrap: break-word;
+            font-size: 0.8rem;
+            line-height: 1.3;
+            vertical-align: top;
+            padding: 6px !important;
+        }
+        
+        .comment-wrapper {
+            margin-bottom: 4px;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        
+        .comment-label {
+            font-size: 0.7rem;
+            font-weight: 600;
+            color: #6c757d;
+            margin-bottom: 1px;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            white-space: nowrap;
+        }
+        
+        .qc-label {
+            color: #0c5460;
+        }
+        
+        .comment-operator {
+            color: #495057;
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            padding: 4px 6px;
+            border-radius: 4px;
+            border-left: 2px solid #6c757d;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+            margin-bottom: 2px;
+            word-wrap: break-word;
+            word-break: break-word;
+            overflow-wrap: break-word;
+            white-space: normal;
+            max-height: 45px;
+            overflow-y: auto;
+            font-size: 0.75rem;
+        }
+        
+        .comment-qc {
+            color: #0c5460;
+            background: linear-gradient(135deg, #d1ecf1 0%, #bee5eb 100%);
+            padding: 4px 6px;
+            border-radius: 4px;
+            border-left: 2px solid #17a2b8;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+            word-wrap: break-word;
+            word-break: break-word;
+            overflow-wrap: break-word;
+            white-space: normal;
+            max-height: 45px;
+            overflow-y: auto;
+            font-size: 0.75rem;
+        }
+        
+        .comment-empty {
+            color: #999;
+            font-style: italic;
+            font-size: 0.75rem;
+            text-align: center;
+            padding: 4px;
+            white-space: nowrap;
+        }
+        
+        /* Стилизация скроллбара для комментариев */
+        .comment-operator::-webkit-scrollbar,
+        .comment-qc::-webkit-scrollbar,
+        .description-cell::-webkit-scrollbar {
+            width: 4px;
+        }
+        
+        .comment-operator::-webkit-scrollbar-track,
+        .comment-qc::-webkit-scrollbar-track,
+        .description-cell::-webkit-scrollbar-track {
+            background: rgba(0,0,0,0.1);
+            border-radius: 2px;
+        }
+        
+        .comment-operator::-webkit-scrollbar-thumb,
+        .comment-qc::-webkit-scrollbar-thumb,
+        .description-cell::-webkit-scrollbar-thumb {
+            background: rgba(0,0,0,0.3);
+            border-radius: 2px;
+        }
+        
+        .comment-operator::-webkit-scrollbar-thumb:hover,
+        .comment-qc::-webkit-scrollbar-thumb:hover,
+        .description-cell::-webkit-scrollbar-thumb:hover {
+            background: rgba(0,0,0,0.5);
+        }
+        
+        /* Улучшенное отображение таблицы */
+        .date-cell {
+            font-size: 0.75rem;
+            color: #6c757d;
+            white-space: nowrap;
+        }
+        
+        .type-cell {
+            text-align: center;
+        }
+        
+        .transaction-type {
+            display: inline-block;
+            padding: 3px 6px;
+            border-radius: 10px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+        
+        .transaction-type.earned {
+            background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .transaction-type.bonus {
+            background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%);
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+        
+        .description-cell {
+            font-size: 0.8rem;
+            color: #495057;
+            word-wrap: break-word;
+            word-break: break-word;
+            overflow-wrap: break-word;
+            white-space: normal;
+            max-height: 60px;
+            overflow-y: auto;
+            padding: 6px !important;
+        }
+        
+        .amount-cell {
+            text-align: right;
+            font-weight: 600;
+        }
+        
+        .transaction-amount {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-size: 0.8rem;
+            font-weight: 700;
+        }
+        
+        .transaction-amount.positive {
+            background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .transaction-amount.negative {
+            background: linear-gradient(135deg, #f8d7da 0%, #f5c6cb 100%);
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        /* Адаптивность */
+        @media (max-width: 768px) {
             
             .transactions-table th,
             .transactions-table td {
                 padding: 8px;
                 font-size: 0.8rem;
+            }
+            
+            .tabs {
+                flex-direction: column;
+            }
+            
+            .tab-button {
+                text-align: left;
+                border-bottom: 1px solid #e1e8ed;
+                border-right: none;
+            }
+            
+            .comment-cell {
+                width: 120px !important;
+                max-width: 120px !important;
+                min-width: 100px !important;
+                font-size: 0.7rem;
+            }
+            
+            .comment-operator,
+            .comment-qc {
+                max-height: 35px;
+                font-size: 0.7rem;
+                padding: 3px 4px;
+            }
+            
+            .comment-label {
+                font-size: 0.65rem;
             }
         }
     </style>
@@ -302,11 +639,16 @@
         <!-- Навигация -->
         <nav class="navbar">
             <div class="nav-container">
-                <h1 class="nav-title">CRM Колл-центра</h1>
-                <div class="nav-user">
-                    <span id="userName"></span>
-                    <span id="userRole" class="user-role"></span>
-                    <button id="logoutBtn" class="btn btn-secondary">Выйти</button>
+                <h1 class="nav-title">CRM Колл-центра — Профиль</h1>
+                <div class="nav-user" id="navUser" style="display: none;">
+                    <div class="user-earnings" id="userEarnings">0.00 ₽</div>
+                    <div class="user-menu">
+                        <div class="user-name" id="userName">Загрузка...</div>
+                        <div class="user-dropdown" id="userDropdown" style="display: none;">
+                            <a href="/" class="dropdown-item">🏠 Выход на главную</a>
+                            <button id="logoutBtn" class="dropdown-item logout-btn">🚪 Выйти с аккаунта</button>
+                        </div>
+                    </div>
                 </div>
             </div>
         </nav>
@@ -314,7 +656,6 @@
         <!-- Основной контент -->
         <main class="main-content">
             <div class="profile-container">
-                <a href="/" class="back-btn">← Назад к дашборду</a>
                 
                 <!-- Заголовок профиля -->
                 <div class="profile-header">
@@ -371,47 +712,6 @@
                     </div>
                 </div>
 
-                <!-- Баланс -->
-                <div class="balance-section">
-                    <div class="section-header">
-                        <h3>Ваш баланс</h3>
-                        <button id="refreshBalanceBtn" class="btn btn-outline">Обновить</button>
-                    </div>
-                    
-                    <div class="balance-cards">
-                        <div class="balance-card">
-                            <div class="balance-icon">💰</div>
-                            <div class="balance-info">
-                                <div class="balance-label">Текущий баланс</div>
-                                <div class="balance-value" id="currentBalance">0 ₽</div>
-                            </div>
-                        </div>
-                        <div class="balance-card">
-                            <div class="balance-icon">📈</div>
-                            <div class="balance-info">
-                                <div class="balance-label">Всего заработано</div>
-                                <div class="balance-value" id="totalEarned">0 ₽</div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Статистика заработка -->
-                <div class="earnings-section">
-                    <div class="section-header">
-                        <h3>Статистика заработка</h3>
-                        <select id="earningsPeriod" class="period-select">
-                            <option value="day">За день</option>
-                            <option value="week">За неделю</option>
-                            <option value="month" selected>За месяц</option>
-                            <option value="year">За год</option>
-                        </select>
-                    </div>
-                    
-                    <div class="earnings-stats" id="earningsStats">
-                        <!-- Статистика будет загружена динамически -->
-                    </div>
-                </div>
 
                 <!-- История транзакций -->
                 <div class="transactions-section">
@@ -420,20 +720,76 @@
                         <button id="loadMoreTransactions" class="btn btn-outline">Загрузить еще</button>
                     </div>
                     
-                    <div class="transactions-table-container">
-                        <table class="transactions-table" id="transactionsTable">
-                            <thead>
-                                <tr>
-                                    <th>Дата</th>
-                                    <th>Тип</th>
-                                    <th>Описание</th>
-                                    <th>Сумма</th>
-                                </tr>
-                            </thead>
-                            <tbody id="transactionsTableBody">
-                                <!-- Транзакции будут загружены динамически -->
-                            </tbody>
-                        </table>
+                    <!-- Вкладки -->
+                    <div class="tabs-container">
+                        <div class="tabs">
+                            <button class="tab-button active" data-tab="regular">Обычные звонки</button>
+                            <button class="tab-button" data-tab="qc-approved">Проверенные ОКК</button>
+                            <button class="tab-button" data-tab="qc-rejected">Отклоненные ОКК</button>
+                        </div>
+                        
+                        <!-- Вкладка обычных звонков -->
+                        <div class="tab-content active" id="regular-tab">
+                            <div class="transactions-table-container">
+                                <table class="transactions-table" id="regularTransactionsTable">
+                                    <thead>
+                                        <tr>
+                                            <th>📅 Дата</th>
+                                            <th>🏷️ Тип</th>
+                                            <th>📝 Описание</th>
+                                            <th>💰 Сумма</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="regularTransactionsTableBody">
+                                        <!-- Обычные транзакции будут загружены динамически -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        
+                        <!-- Вкладка проверенных ОКК лидов -->
+                        <div class="tab-content" id="qc-approved-tab">
+                            <div class="transactions-table-container">
+                                <table class="transactions-table" id="qcTransactionsTable">
+                                    <thead>
+                                        <tr>
+                                            <th>📅 Дата</th>
+                                            <th>🏷️ Тип</th>
+                                            <th>📝 Описание</th>
+                                            <th>💰 Сумма</th>
+                                            <th>👤 Комментарий оператора</th>
+                                            <th>✅ Комментарий ОКК</th>
+                                            <th>📊 Статус ОКК</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="qcTransactionsTableBody">
+                                        <!-- ОКК транзакции будут загружены динамически -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        
+                        <!-- Вкладка отклоненных ОКК лидов -->
+                        <div class="tab-content" id="qc-rejected-tab">
+                            <div class="transactions-table-container">
+                                <table class="transactions-table" id="qcRejectedTransactionsTable">
+                                    <thead>
+                                        <tr>
+                                            <th>📅 Дата</th>
+                                            <th>🏷️ Тип</th>
+                                            <th>📝 Описание</th>
+                                            <th>💰 Сумма</th>
+                                            <th>👤 Комментарий оператора</th>
+                                            <th>❌ Комментарий ОКК</th>
+                                            <th>📊 Статус ОКК</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="qcRejectedTransactionsTableBody">
+                                        <!-- Отклоненные ОКК транзакции будут загружены динамически -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
                     </div>
                     
                     <div id="transactionsLoading" class="loading-indicator" style="display: none;">
@@ -441,13 +797,6 @@
                     </div>
                 </div>
 
-                <!-- Общая статистика -->
-                <div class="stats-section">
-                    <h3>Общая статистика</h3>
-                    <div class="stats-grid" id="profileStats">
-                        <!-- Статистика будет загружена динамически -->
-                    </div>
-                </div>
             </div>
         </main>
 

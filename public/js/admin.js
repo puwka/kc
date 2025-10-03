@@ -52,19 +52,22 @@ async function checkAuth(token) {
                 }, 2000);
                 return;
             }
-            
-            // Показываем интерфейс
-            document.getElementById('navUser').style.display = 'flex';
-            document.getElementById('userName').textContent = currentUser.name;
-            document.getElementById('userRole').textContent = currentUser.role;
-            
-            // Загружаем список пользователей
-            loadUsers();
-            
+        } else if (response.status === 401) {
+            localStorage.removeItem('token');
+            window.location.href = '/login.html';
+            return;
         } else {
             localStorage.removeItem('token');
             window.location.href = '/login.html';
         }
+        
+        // Показываем интерфейс
+        document.getElementById('navUser').style.display = 'flex';
+        document.getElementById('userName').textContent = currentUser.name;
+        document.getElementById('userRole').textContent = currentUser.role;
+        
+        // Загружаем список пользователей
+        loadUsers();
     } catch (error) {
         localStorage.removeItem('token');
         window.location.href = '/login.html';

@@ -513,6 +513,13 @@ function bindEvents(){
 
 async function loadMe(token){
   const resp=await fetch('/api/auth/me',{headers:{'Authorization':`Bearer ${token}`}});
+  
+  if (resp.status === 401) {
+    localStorage.removeItem('token');
+    window.location.href = '/';
+    return;
+  }
+  
   const data=await resp.json();
   currentUser=data.user;
   if(currentUser.role!=='quality'&&currentUser.role!=='admin'){window.location.href='/';}

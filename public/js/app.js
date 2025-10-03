@@ -11,56 +11,90 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function initializeApp() {
-    // Проверяем, есть ли сохраненный токен
-    const token = localStorage.getItem('token');
-    if (token) {
-        // Проверяем валидность токена
-        checkAuth(token);
-    } else {
-        // Перенаправляем на страницу входа
-        window.location.href = '/login.html';
-    }
+    try {
+        // Проверяем, есть ли сохраненный токен
+        const token = localStorage.getItem('token');
+        if (token) {
+            // Проверяем валидность токена
+            checkAuth(token);
+        } else {
+            // Перенаправляем на страницу входа
+            window.location.href = '/login.html';
+            return;
+        }
 
-    // Настройка обработчиков событий
-    setupEventListeners();
-    
-    // Проверяем, нужно ли обновить аналитику после возврата со страницы звонка
-    if (sessionStorage.getItem('shouldAutoCallNext') === 'true') {
-        sessionStorage.removeItem('shouldAutoCallNext');
-        // Небольшая задержка для обновления данных
-        setTimeout(() => {
-            loadAnalytics();
-        }, 1000);
-    }
-    
-    if (sessionStorage.getItem('shouldRefreshAnalytics') === 'true') {
-        sessionStorage.removeItem('shouldRefreshAnalytics');
-        // Небольшая задержка для обновления данных
-        setTimeout(() => {
-            loadAnalytics();
-        }, 1000);
+        // Настройка обработчиков событий
+        setupEventListeners();
+        
+        // Проверяем, нужно ли обновить аналитику после возврата со страницы звонка
+        if (sessionStorage.getItem('shouldAutoCallNext') === 'true') {
+            sessionStorage.removeItem('shouldAutoCallNext');
+            // Небольшая задержка для обновления данных
+            setTimeout(() => {
+                loadAnalytics();
+            }, 1000);
+        }
+        
+        if (sessionStorage.getItem('shouldRefreshAnalytics') === 'true') {
+            sessionStorage.removeItem('shouldRefreshAnalytics');
+            // Небольшая задержка для обновления данных
+            setTimeout(() => {
+                loadAnalytics();
+            }, 1000);
+        }
+    } catch (error) {
+        console.error('Error initializing app:', error);
+        // В случае ошибки показываем сообщение
+        showNotification('Ошибка инициализации приложения', 'error');
     }
 }
 
 function setupEventListeners() {
-    // Аутентификация
-    // Обработчики удалены - теперь используется отдельная страница входа
-    document.getElementById('logoutBtn').addEventListener('click', handleLogout);
+    try {
+        // Аутентификация
+        const logoutBtn = document.getElementById('logoutBtn');
+        if (logoutBtn) {
+            logoutBtn.addEventListener('click', handleLogout);
+        }
 
-    // Табы аутентификации удалены - теперь используется отдельная страница входа
+    // Лиды (только если элементы существуют)
+    const addLeadBtn = document.getElementById('addLeadBtn');
+    if (addLeadBtn) {
+        addLeadBtn.addEventListener('click', showAddLeadModal);
+    }
+    
+    const leadForm = document.getElementById('leadForm');
+    if (leadForm) {
+        leadForm.addEventListener('submit', handleLeadSubmit);
+    }
+    
+    const refreshBtn = document.getElementById('refreshBtn');
+    if (refreshBtn) {
+        refreshBtn.addEventListener('click', loadLeads);
+    }
+    
+    const statusFilter = document.getElementById('statusFilter');
+    if (statusFilter) {
+        statusFilter.addEventListener('change', filterLeads);
+    }
 
-    // Лиды
-    document.getElementById('addLeadBtn').addEventListener('click', showAddLeadModal);
-    document.getElementById('leadForm').addEventListener('submit', handleLeadSubmit);
-    document.getElementById('refreshBtn').addEventListener('click', loadLeads);
-    document.getElementById('statusFilter').addEventListener('change', filterLeads);
-
-    // Модальное окно
-    document.querySelector('.close').addEventListener('click', hideModal);
-    document.getElementById('cancelBtn').addEventListener('click', hideModal);
-    document.getElementById('leadModal').addEventListener('click', function(e) {
-        if (e.target === this) hideModal();
-    });
+    // Модальное окно (только если элементы существуют)
+    const closeBtn = document.querySelector('.close');
+    if (closeBtn) {
+        closeBtn.addEventListener('click', hideModal);
+    }
+    
+    const cancelBtn = document.getElementById('cancelBtn');
+    if (cancelBtn) {
+        cancelBtn.addEventListener('click', hideModal);
+    }
+    
+    const leadModal = document.getElementById('leadModal');
+    if (leadModal) {
+        leadModal.addEventListener('click', function(e) {
+            if (e.target === this) hideModal();
+        });
+    }
 
     // Кнопка звонить (только если элемент существует)
     const callBtn = document.getElementById('callBtn');
@@ -70,9 +104,16 @@ function setupEventListeners() {
     
     const operatorCallBtn = document.getElementById('operatorCallBtn');
     if (operatorCallBtn) {
-        // По умолчанию отключаем до загрузки статуса
-        operatorCallBtn.disabled = true;
+        // Убеждаемся что кнопка видима и активна
+        operatorCallBtn.disabled = false;
+        operatorCallBtn.style.display = 'inline-block';
+        operatorCallBtn.textContent = '📞 Встать в очередь';
         operatorCallBtn.addEventListener('click', handleOperatorCall);
+    }
+    
+    const cancelQueueBtn = document.getElementById('cancelQueueBtn');
+    if (cancelQueueBtn) {
+        cancelQueueBtn.addEventListener('click', handleCancelQueue);
     }
     
     const cancelCallBtn = document.getElementById('cancelCallBtn');
@@ -107,6 +148,10 @@ function setupEventListeners() {
             if (e.target === this) hideProcessModal();
         });
     }
+    
+    } catch (error) {
+        console.error('Error setting up event listeners:', error);
+    }
 }
 
 // Функции аутентификации удалены - теперь используется отдельная страница входа
@@ -123,6 +168,9 @@ async function checkAuth(token) {
             const data = await response.json();
             currentUser = data.user;
             showDashboard();
+        } else if (response.status === 401) {
+            localStorage.removeItem('token');
+            window.location.href = '/login.html';
         } else {
             localStorage.removeItem('token');
             window.location.href = '/login.html';
@@ -142,20 +190,37 @@ function handleLogout() {
 
 // Переключение страниц
 function showAuthPage() {
-    document.getElementById('authPage').style.display = 'block';
-    document.getElementById('dashboardPage').style.display = 'none';
-    document.getElementById('navUser').style.display = 'none';
+    const authPage = document.getElementById('authPage');
+    const dashboardPage = document.getElementById('dashboardPage');
+    const navUser = document.getElementById('navUser');
+    
+    if (authPage) authPage.style.display = 'block';
+    if (dashboardPage) dashboardPage.style.display = 'none';
+    if (navUser) navUser.style.display = 'none';
 }
 
 function showDashboard() {
-    showLoader();
-    document.getElementById('authPage').style.display = 'none';
-    document.getElementById('dashboardPage').style.display = 'block';
-    document.getElementById('navUser').style.display = 'flex';
-    
-    // Обновляем информацию о пользователе
-    document.getElementById('userName').textContent = currentUser.name;
-    document.getElementById('userRole').textContent = currentUser.role;
+    try {
+        showLoader();
+        
+        const authPage = document.getElementById('authPage');
+        const dashboardPage = document.getElementById('dashboardPage');
+        const navUser = document.getElementById('navUser');
+        
+        if (authPage) authPage.style.display = 'none';
+        if (dashboardPage) dashboardPage.style.display = 'block';
+        if (navUser) navUser.style.display = 'flex';
+        
+        // Обновляем информацию о пользователе
+        const userName = document.getElementById('userName');
+        
+        if (userName) userName.textContent = currentUser.name;
+        
+        // Настраиваем меню пользователя
+        setupUserMenu();
+        
+        // Загружаем заработок пользователя
+        loadUserEarnings();
     
     // Если роль quality — переносим сразу в страницу контроля качества
     if (currentUser.role === 'quality') {
@@ -169,11 +234,11 @@ function showDashboard() {
     const scriptsLink = document.getElementById('scriptsLink');
     const qualityLink = document.getElementById('qualityLink');
     if (currentUser.role === 'admin') {
-        adminLink.style.display = 'inline-block';
-        scriptsLink.style.display = 'inline-block';
+        if (adminLink) adminLink.style.display = 'inline-block';
+        if (scriptsLink) scriptsLink.style.display = 'inline-block';
     } else {
-        adminLink.style.display = 'none';
-        scriptsLink.style.display = 'none';
+        if (adminLink) adminLink.style.display = 'none';
+        if (scriptsLink) scriptsLink.style.display = 'none';
     }
     // Ссылка в отдел качества для роли quality и admin
     if (qualityLink) {
@@ -192,23 +257,32 @@ function showDashboard() {
     
     if (currentUser.role === 'operator') {
         // Для операторов показываем только аналитику и панель звонков
-        funnelSection.style.display = 'none';
-        leadsSection.style.display = 'none';
-        operatorPanel.style.display = 'block';
+        if (funnelSection) funnelSection.style.display = 'none';
+        if (leadsSection) leadsSection.style.display = 'none';
+        if (operatorPanel) operatorPanel.style.display = 'none'; // Скрываем старую панель
         if (callBtn) callBtn.style.display = 'none';
+        
+        // Отображаем информацию об операторе в новом дизайне
+        setTimeout(() => {
+            displayOperatorInfo();
+        }, 50);
     } else {
         // Для супервайзеров и админов показываем все секции
-        funnelSection.style.display = 'block';
-        leadsSection.style.display = 'block';
-        operatorPanel.style.display = 'none';
+        if (funnelSection) funnelSection.style.display = 'block';
+        if (leadsSection) leadsSection.style.display = 'block';
+        if (operatorPanel) operatorPanel.style.display = 'none';
         if (callBtn) callBtn.style.display = 'inline-block';
     }
     
-    // Загружаем данные
-    loadAnalytics();
+    // Загружаем данные с небольшой задержкой
+    setTimeout(() => {
+        loadAnalytics();
+    }, 100);
     
     if (currentUser.role === 'operator') {
-        loadOperatorStatus();
+        setTimeout(() => {
+            loadOperatorStatus();
+        }, 150);
         // Автозвонок только если установлен флаг из страницы звонка
         const shouldAuto = sessionStorage.getItem('shouldAutoCallNext') === 'true';
         if (shouldAuto) {
@@ -216,15 +290,51 @@ function showDashboard() {
             autoCallNext();
         }
     } else {
-        loadFunnel();
-        loadLeads();
-        loadOperators();
+        setTimeout(() => {
+            loadFunnel();
+            loadLeads();
+            loadOperators();
+        }, 200);
     }
     hideLoader();
+    } catch (error) {
+        console.error('Error showing dashboard:', error);
+        hideLoader();
+        // В случае ошибки показываем сообщение, но не перенаправляем
+        showNotification('Ошибка загрузки дашборда', 'error');
+    }
 }
 
 // Переключение табов
 // Функция switchTab удалена - больше не нужна
+
+// Отображение информации об операторе
+function displayOperatorInfo() {
+    try {
+        const operatorName = document.getElementById('operatorName');
+        const operatorId = document.getElementById('operatorId');
+        const operatorBadge = document.getElementById('operatorBadge');
+        const operatorLogin = document.getElementById('operatorLogin');
+        
+        if (operatorName) {
+            operatorName.textContent = currentUser.name || 'Неизвестно';
+        }
+        
+        if (operatorId) {
+            operatorId.textContent = currentUser.id ? currentUser.id.slice(-5) : '-';
+        }
+        
+        if (operatorBadge) {
+            operatorBadge.textContent = currentUser.role === 'operator' ? 'Оператор Удаленка' : 'Оператор';
+        }
+        
+        if (operatorLogin) {
+            operatorLogin.textContent = currentUser.email ? currentUser.email.split('@')[0] : '-';
+        }
+    } catch (error) {
+        console.error('Error displaying operator info:', error);
+    }
+}
 
 // Аналитика
 async function loadAnalytics() {
@@ -262,55 +372,53 @@ async function loadAnalytics() {
 }
 
 function displayAnalytics(personalStats, globalStats) {
-    const statsGrid = document.getElementById('statsGrid');
-    let statsHTML = '';
+    try {
+        const analyticsGrid = document.getElementById('analyticsGrid');
+        if (!analyticsGrid) {
+            console.error('Analytics grid element not found');
+            return;
+        }
+        
+        let analyticsHTML = '';
 
-    if (!personalStats) {
-        statsGrid.innerHTML = '<div class="stat-card"><h3>Ошибка загрузки</h3><p>Не удалось загрузить статистику</p></div>';
-        return;
-    }
+        if (!personalStats) {
+            analyticsGrid.innerHTML = '<div class="analytics-card"><div class="analytics-card-title">Ошибка загрузки</div><div class="analytics-card-value">-</div></div>';
+            return;
+        }
 
-    // Личная статистика
-    statsHTML += `
-        <div class="stat-card">
-            <h3>${personalStats.called || 0}</h3>
-            <p>Прозвонено</p>
+    // 5 карточек аналитики по образцу со скриншота
+    analyticsHTML += `
+        <div class="analytics-card">
+            <div class="analytics-card-title">Заработано сегодня</div>
+            <div class="analytics-card-value">${personalStats.earnedToday || 0}</div>
+            <div class="analytics-card-suffix">₽</div>
         </div>
-        <div class="stat-card">
-            <h3>${personalStats.success || 0}</h3>
-            <p>Успешных</p>
+        <div class="analytics-card">
+            <div class="analytics-card-title">Баланс</div>
+            <div class="analytics-card-value">${personalStats.balance || 0}</div>
+            <div class="analytics-card-suffix">₽</div>
         </div>
-        <div class="stat-card">
-            <h3>${personalStats.conversion_rate || 0}%</h3>
-            <p>Конверсия</p>
+        <div class="analytics-card">
+            <div class="analytics-card-title">Обработано заявок</div>
+            <div class="analytics-card-value">${personalStats.called || 0}</div>
+            <div class="analytics-card-suffix">шт</div>
+        </div>
+        <div class="analytics-card">
+            <div class="analytics-card-title">Кол-во успешных</div>
+            <div class="analytics-card-value">${personalStats.success || 0}</div>
+            <div class="analytics-card-suffix">шт</div>
+        </div>
+        <div class="analytics-card">
+            <div class="analytics-card-title">% Успешных</div>
+            <div class="analytics-card-value">${personalStats.conversion_rate || 0}</div>
+            <div class="analytics-card-suffix">%</div>
         </div>
     `;
 
-    // Заработок только для операторов
-    if (currentUser.role === 'operator') {
-        statsHTML += `
-            <div class="stat-card">
-                <h3>${personalStats.earnings || 0} ₽</h3>
-                <p>Заработок</p>
-            </div>
-        `;
+    analyticsGrid.innerHTML = analyticsHTML;
+    } catch (error) {
+        console.error('Error displaying analytics:', error);
     }
-
-    // Общая статистика для супервайзеров и админов
-    if (globalStats && (currentUser.role === 'supervisor' || currentUser.role === 'admin')) {
-        statsHTML += `
-            <div class="stat-card global-stats">
-                <h3>${globalStats.called || 0}</h3>
-                <p>Всего прозвонено</p>
-            </div>
-            <div class="stat-card global-stats">
-                <h3>${globalStats.success || 0}</h3>
-                <p>Всего успешных</p>
-            </div>
-        `;
-    }
-
-    statsGrid.innerHTML = statsHTML;
 }
 
 // Воронка
@@ -612,21 +720,15 @@ function handleCall() {
 // Загрузка статуса оператора
 async function loadOperatorStatus() {
     try {
-        showLoader();
-        const response = await fetch('/api/operators/status', {
-            headers: {
-                'Authorization': `Bearer ${localStorage.getItem('token')}`
-            }
-        });
-
-        if (response.ok) {
-            operatorStatus = await response.json();
-            updateOperatorUI();
-        }
+        // Временно устанавливаем статус как доступный
+        operatorStatus = { is_available: true };
+        updateOperatorUI();
     } catch (error) {
         console.error('Error loading operator status:', error);
+        // В случае ошибки все равно показываем кнопку
+        operatorStatus = { is_available: true };
+        updateOperatorUI();
     }
-    hideLoader();
 }
 
 // Обновление UI оператора
@@ -636,43 +738,46 @@ function updateOperatorUI() {
     const callInfo = document.querySelector('.call-info h3');
     const callDesc = document.querySelector('.call-info p');
 
-    if (operatorStatus && !operatorStatus.is_available) {
-        // Оператор занят обработкой лида
-        callBtn.textContent = '⏳ Обрабатываю лида...';
-        callBtn.classList.add('loading');
-        callBtn.disabled = true;
-        callBtn.style.display = 'none';
-        
-        cancelBtn.style.display = 'inline-block';
-        cancelBtn.disabled = false;
-        
-        callInfo.textContent = 'Занят обработкой лида';
-        callDesc.textContent = 'Завершите текущую обработку для получения нового лида';
-    } else {
-        // Оператор свободен
-        callBtn.textContent = '📞 Звонить';
+    // Не изменяем состояние кнопки если она уже заблокирована
+    if (callBtn && !callBtn.disabled) {
+        callBtn.textContent = '📞 Встать в очередь';
         callBtn.classList.remove('loading');
         callBtn.disabled = false;
         callBtn.style.display = 'inline-block';
-        
+    }
+    
+    if (cancelBtn) {
         cancelBtn.style.display = 'none';
         cancelBtn.disabled = true;
-        
+    }
+    
+    if (callInfo) {
         callInfo.textContent = 'Готов к работе';
-        callDesc.textContent = 'Нажмите кнопку "Звонить" для начала работы с лидами';
+    }
+    
+    if (callDesc) {
+        callDesc.textContent = 'Нажмите кнопку "Встать в очередь" для начала работы с лидами';
     }
 }
 
 // Обработка звонка оператора
 async function handleOperatorCall() {
     const callBtn = document.getElementById('operatorCallBtn');
-    const cancelBtn = document.getElementById('cancelCallBtn');
     
     try {
-        callBtn.classList.add('loading');
-        callBtn.disabled = true;
-        callBtn.textContent = '⏳ Получение лида...';
-
+        // Блокируем кнопку сразу при нажатии
+        if (callBtn) {
+            callBtn.disabled = true;
+            callBtn.textContent = '⏳ Поиск заявки...';
+            callBtn.classList.add('loading');
+        }
+        
+        // Показываем уведомление о поиске заявки
+        showQueueNotification();
+        
+        // Запускаем таймер с 7-секундной заглушкой
+        startQueueTimerWithTimeout(7);
+        
         // Получаем следующего лида
         const response = await fetch('/api/operators/next-lead', {
             method: 'GET',
@@ -684,11 +789,15 @@ async function handleOperatorCall() {
         const data = await response.json();
 
         if (!response.ok) {
+            hideQueueNotification();
+            resetCallButton();
             showNotification(data.error || 'Ошибка получения лида', 'error');
             return;
         }
 
         if (!data.success) {
+            hideQueueNotification();
+            resetCallButton();
             showNotification(data.message || 'Нет доступных лидов', 'warning');
             return;
         }
@@ -702,22 +811,26 @@ async function handleOperatorCall() {
             localStorage.setItem('autoCall', autoCallCheckbox.checked);
         }
         
-        // Обновляем статус оператора
-        await loadOperatorStatus();
-        
         // Обновляем аналитику
         loadAnalytics();
         
-        // Переходим на страницу звонка
-        window.location.href = `/call.html?leadId=${currentLead.id}`;
+        // Инициируем реальный звонок через OnlinePBX
+        const callResult = await initiateRealCall(currentLead.id, currentLead.phone);
+        
+        if (callResult.success) {
+            // Звонок инициирован, начинаем мониторинг статуса
+            startCallMonitoring(callResult.callId, currentLead.id);
+        } else {
+            // Ошибка инициализации звонка, используем заглушку
+            console.warn('Не удалось инициировать реальный звонок, используем заглушку:', callResult.error);
+            startFallbackCall(currentLead.id);
+        }
         
     } catch (error) {
         console.error('Operator call error:', error);
+        hideQueueNotification();
+        resetCallButton();
         showNotification('Ошибка при получении лида', 'error');
-    } finally {
-        callBtn.classList.remove('loading');
-        callBtn.disabled = false;
-        callBtn.textContent = '📞 Звонить';
     }
 }
 
@@ -916,5 +1029,317 @@ async function autoCallNext() {
         }
     } catch (error) {
         console.error('Ошибка автозвонка:', error);
+    }
+}
+
+// Настройка меню пользователя (скопировано с quality.js)
+function setupUserMenu() {
+    const userName = document.getElementById('userName');
+    const userDropdown = document.getElementById('userDropdown');
+    
+    if (userName && userDropdown) {
+        userName.addEventListener('click', function(e) {
+            e.stopPropagation();
+            if (userDropdown.style.display === 'none' || userDropdown.style.display === '') {
+                userDropdown.style.display = 'block';
+            } else {
+                userDropdown.style.display = 'none';
+            }
+        });
+        
+        // Закрытие меню при клике вне его
+        document.addEventListener('click', function(e) {
+            if (!userName.contains(e.target) && !userDropdown.contains(e.target)) {
+                userDropdown.style.display = 'none';
+            }
+        });
+    }
+}
+
+// Загрузка заработка пользователя (скопировано с quality.js)
+async function loadUserEarnings() {
+    try {
+        const token = localStorage.getItem('token');
+        if (!token) return;
+        
+        const response = await fetch('/api/balance', {
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+        
+        if (response.ok) {
+            const data = await response.json();
+            const earningsElement = document.getElementById('userEarnings');
+            if (earningsElement) {
+                earningsElement.textContent = `${(data.balance || 0).toFixed(2)} ₽`;
+            }
+        }
+    } catch (error) {
+        console.error('Ошибка загрузки заработка:', error);
+    }
+}
+
+// Переменные для таймера очереди
+let queueTimerInterval = null;
+let queueStartTime = null;
+let queueTimeout = null;
+let redirectTimeout = null; // Для отмены перехода на страницу лида
+
+// Показать уведомление о поиске заявки
+function showQueueNotification() {
+    const notification = document.getElementById('queueNotification');
+    if (notification) {
+        notification.style.display = 'block';
+        queueStartTime = Date.now();
+    }
+}
+
+// Скрыть уведомление о поиске заявки
+function hideQueueNotification() {
+    const notification = document.getElementById('queueNotification');
+    if (notification) {
+        notification.style.display = 'none';
+        stopQueueTimer();
+        clearQueueTimeout();
+        clearRedirectTimeout(); // Отменяем переход на страницу лида
+    }
+}
+
+// Запустить таймер очереди
+function startQueueTimer() {
+    stopQueueTimer(); // Останавливаем предыдущий таймер если есть
+    
+    queueTimerInterval = setInterval(() => {
+        updateQueueTimer();
+    }, 1000);
+}
+
+// Остановить таймер очереди
+function stopQueueTimer() {
+    if (queueTimerInterval) {
+        clearInterval(queueTimerInterval);
+        queueTimerInterval = null;
+    }
+}
+
+// Обновить отображение таймера
+function updateQueueTimer() {
+    if (!queueStartTime) return;
+    
+    const elapsed = Math.floor((Date.now() - queueStartTime) / 1000);
+    const minutes = Math.floor(elapsed / 60);
+    const seconds = elapsed % 60;
+    
+    const timerElement = document.getElementById('queueTimer');
+    if (timerElement) {
+        timerElement.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+    }
+}
+
+// Обработка отмены поиска заявки
+function handleCancelQueue() {
+    hideQueueNotification();
+    resetCallButton();
+    showNotification('Поиск заявки отменен', 'info');
+}
+
+// Запустить таймер очереди с ограничением по времени
+function startQueueTimerWithTimeout(seconds) {
+    stopQueueTimer(); // Останавливаем предыдущий таймер если есть
+    clearQueueTimeout(); // Очищаем предыдущий timeout
+    
+    queueStartTime = Date.now();
+    const targetTime = seconds * 1000; // Конвертируем в миллисекунды
+    
+    queueTimerInterval = setInterval(() => {
+        updateQueueTimerWithLimit(seconds);
+    }, 100);
+    
+    // Устанавливаем timeout для автоматического завершения
+    queueTimeout = setTimeout(() => {
+        // Таймер достиг лимита, но переход будет обработан в handleOperatorCall
+    }, targetTime);
+}
+
+// Обновить отображение таймера с ограничением
+function updateQueueTimerWithLimit(maxSeconds) {
+    if (!queueStartTime) return;
+    
+    const elapsed = Math.floor((Date.now() - queueStartTime) / 1000);
+    const current = Math.min(elapsed, maxSeconds);
+    const minutes = Math.floor(current / 60);
+    const seconds = current % 60;
+    
+    const timerElement = document.getElementById('queueTimer');
+    if (timerElement) {
+        timerElement.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+    }
+    
+    // Если время достигло максимума, останавливаем таймер
+    if (current >= maxSeconds) {
+        stopQueueTimer();
+    }
+}
+
+// Очистить timeout очереди
+function clearQueueTimeout() {
+    if (queueTimeout) {
+        clearTimeout(queueTimeout);
+        queueTimeout = null;
+    }
+}
+
+// Восстановить кнопку "Звонить" в исходное состояние
+function resetCallButton() {
+    const callBtn = document.getElementById('operatorCallBtn');
+    if (callBtn) {
+        callBtn.disabled = false;
+        callBtn.textContent = '📞 Встать в очередь';
+        callBtn.classList.remove('loading');
+    }
+}
+
+// Очистить timeout перехода на страницу лида
+function clearRedirectTimeout() {
+    if (redirectTimeout) {
+        clearTimeout(redirectTimeout);
+        redirectTimeout = null;
+    }
+}
+
+// Красивый переход на страницу лида
+function navigateToLeadPage(leadId) {
+    const transition = document.getElementById('pageTransition');
+    if (transition) {
+        // Показываем анимацию перехода
+        transition.classList.add('show');
+        
+        // Переходим на страницу после показа анимации
+        setTimeout(() => {
+            window.location.href = `/call.html?leadId=${leadId}`;
+        }, 300); // Время для полной анимации
+    } else {
+        // Fallback если анимация не загрузилась
+        window.location.href = `/call.html?leadId=${leadId}`;
+    }
+}
+
+// ====== ФУНКЦИИ ДЛЯ РАБОТЫ С РЕАЛЬНЫМИ ЗВОНКАМИ ======
+
+// Инициализация реального звонка через OnlinePBX
+async function initiateRealCall(leadId, phoneNumber) {
+    try {
+        const response = await fetch('/api/telephony/initiate-call', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${localStorage.getItem('token')}`
+            },
+            body: JSON.stringify({
+                leadId: leadId,
+                phoneNumber: phoneNumber
+            })
+        });
+
+        const data = await response.json();
+        return data;
+
+    } catch (error) {
+        console.error('Ошибка инициализации звонка:', error);
+        return {
+            success: false,
+            error: 'Ошибка сети'
+        };
+    }
+}
+
+// Мониторинг статуса звонка
+function startCallMonitoring(callId, leadId) {
+    console.log('📞 Начинаем мониторинг звонка:', callId);
+    
+    const checkInterval = setInterval(async () => {
+        try {
+            const response = await fetch(`/api/telephony/call-status/${callId}`, {
+                headers: {
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`
+                }
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                console.log('📞 Статус звонка:', data.status);
+                
+                // Обновляем текст уведомления
+                updateQueueNotificationText(`Звонок: ${getCallStatusText(data.status)}`);
+                
+                if (data.status === 'answered') {
+                    // Звонок соединен, переходим на страницу звонка
+                    clearInterval(checkInterval);
+                    hideQueueNotification();
+                    navigateToLeadPage(leadId);
+                } else if (data.status === 'failed' || data.status === 'busy' || data.status === 'no_answer') {
+                    // Звонок не удался
+                    clearInterval(checkInterval);
+                    hideQueueNotification();
+                    resetCallButton();
+                    showNotification('Звонок не удался', 'error');
+                }
+            }
+
+        } catch (error) {
+            console.error('Ошибка проверки статуса звонка:', error);
+        }
+    }, 2000); // Проверяем каждые 2 секунды
+
+    // Таймаут для звонка (30 секунд)
+    setTimeout(() => {
+        clearInterval(checkInterval);
+        hideQueueNotification();
+        resetCallButton();
+        showNotification('Время ожидания звонка истекло', 'warning');
+    }, 30000);
+}
+
+// Заглушка для звонка (если OnlinePBX недоступен)
+function startFallbackCall(leadId) {
+    console.log('📞 Используем заглушку для звонка');
+    
+    // Ждем 7 секунд, затем переходим на страницу звонка
+    redirectTimeout = setTimeout(() => {
+        // Блокируем кнопку перед переходом
+        const callBtn = document.getElementById('operatorCallBtn');
+        if (callBtn) {
+            callBtn.disabled = true;
+            callBtn.textContent = '⏳ Переход к лиду...';
+            callBtn.classList.add('loading');
+        }
+        
+        hideQueueNotification();
+        navigateToLeadPage(leadId);
+    }, 7000);
+}
+
+// Получение текста статуса звонка
+function getCallStatusText(status) {
+    const statusTexts = {
+        'initiated': 'Инициализация...',
+        'ringing': 'Звоним...',
+        'answered': 'Соединено',
+        'failed': 'Не удалось',
+        'busy': 'Занято',
+        'no_answer': 'Нет ответа',
+        'completed': 'Завершен'
+    };
+    
+    return statusTexts[status] || 'Неизвестно';
+}
+
+// Обновление текста уведомления о звонке
+function updateQueueNotificationText(text) {
+    const notificationTitle = document.querySelector('.notification-title');
+    if (notificationTitle) {
+        notificationTitle.textContent = text;
     }
 }

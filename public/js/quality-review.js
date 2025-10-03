@@ -94,6 +94,13 @@ async function loadMe(token) {
             'Authorization': `Bearer ${token}`
         }
     });
+    
+    if (resp.status === 401) {
+        localStorage.removeItem('token');
+        window.location.href = '/';
+        return;
+    }
+    
     const data = await resp.json();
     currentUser = data.user;
     

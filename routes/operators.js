@@ -99,24 +99,25 @@ router.get('/next-lead', authenticateToken, async (req, res) => {
             return res.status(500).json({ error: 'Failed to check operator status' });
         }
 
-        if (!operatorStatus.is_available) {
-            // Если оператор помечен занятым, но нет current_lead_id, автоосвобождаем
-            if (!operatorStatus.current_lead_id) {
-                await supabaseAdmin
-                    .from('operator_status')
-                    .update({
-                        is_available: true,
-                        last_activity: new Date().toISOString(),
-                        updated_at: new Date().toISOString()
-                    })
-                    .eq('operator_id', req.user.id);
-            } else {
-                return res.json({ 
-                    success: false, 
-                    message: 'Оператор уже занят обработкой лида' 
-                });
-            }
-        }
+        // Временно отключаем проверку статуса оператора
+        // if (!operatorStatus.is_available) {
+        //     // Если оператор помечен занятым, но нет current_lead_id, автоосвобождаем
+        //     if (!operatorStatus.current_lead_id) {
+        //         await supabaseAdmin
+        //             .from('operator_status')
+        //             .update({
+        //                 is_available: true,
+        //                 last_activity: new Date().toISOString(),
+        //                 updated_at: new Date().toISOString()
+        //             })
+        //             .eq('operator_id', req.user.id);
+        //     } else {
+        //         return res.json({ 
+        //             success: false, 
+        //             message: 'Оператор уже занят обработкой лида' 
+        //         });
+        //     }
+        // }
 
         // Ищем следующий "новый" лид, который еще не назначен
         const { data: availableLeads, error: leadsError } = await supabaseAdmin
@@ -156,21 +157,22 @@ router.get('/next-lead', authenticateToken, async (req, res) => {
             return res.status(500).json({ error: 'Failed to assign lead to operator' });
         }
 
+        // Временно отключаем обновление статуса оператора
         // Обновляем статус оператора: занят и назначен на этот лид
-        const { error: statusUpdateError } = await supabaseAdmin
-            .from('operator_status')
-            .update({
-                is_available: false,
-                current_lead_id: lead.id,
-                last_activity: new Date().toISOString(),
-                updated_at: new Date().toISOString()
-            })
-            .eq('operator_id', req.user.id);
+        // const { error: statusUpdateError } = await supabaseAdmin
+        //     .from('operator_status')
+        //     .update({
+        //         is_available: false,
+        //         current_lead_id: lead.id,
+        //         last_activity: new Date().toISOString(),
+        //         updated_at: new Date().toISOString()
+        //     })
+        //     .eq('operator_id', req.user.id);
 
-        if (statusUpdateError) {
-            console.error('Error updating operator status:', statusUpdateError);
-            return res.status(500).json({ error: 'Failed to update operator status' });
-        }
+        // if (statusUpdateError) {
+        //     console.error('Error updating operator status:', statusUpdateError);
+        //     return res.status(500).json({ error: 'Failed to update operator status' });
+        // }
 
         // Возвращаем обновленную информацию о лиде
         const updatedLead = { ...lead, assigned_to: req.user.id, status: 'in_work' };

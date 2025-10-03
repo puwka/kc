@@ -7,8 +7,7 @@ let autoCallEnabled = false;
 
 // Инициализация при загрузке страницы
 document.addEventListener('DOMContentLoaded', function() {
-    showLoader();
-    initializeCallPage().finally(() => hideLoader());
+    initializeCallPage().finally(() => hidePageTransition());
 });
 
 // Инициализация страницы звонка
@@ -559,4 +558,20 @@ function logout() {
     setTimeout(() => {
         window.location.href = '/';
     }, 500);
+}
+
+// Показать анимацию перехода
+function showPageTransition() {
+    const transition = document.getElementById('pageTransition');
+    if (transition) {
+        transition.classList.add('show');
+    }
+}
+
+// Скрыть анимацию перехода
+function hidePageTransition() {
+    const transition = document.getElementById('pageTransition');
+    if (transition) {
+        transition.classList.remove('show');
+    }
 }

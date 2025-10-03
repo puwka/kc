@@ -4,7 +4,36 @@ const { authenticateToken } = require('../middleware/auth');
 
 const router = express.Router();
 
-// Получить баланс пользователя
+// Получить баланс пользователя (корневой путь)
+router.get('/', authenticateToken, async (req, res) => {
+    try {
+        console.log('🔍 Balance API called for user:', req.user.id);
+        
+        const { data: balanceData, error } = await supabaseAdmin
+            .rpc('get_user_balance', { p_user_id: req.user.id });
+
+        console.log('📊 Balance query result:', { balanceData, error });
+
+        if (error) {
+            console.error('Error fetching user balance:', error);
+            return res.status(500).json({ error: 'Ошибка получения баланса' });
+        }
+
+        const balance = balanceData && balanceData[0] ? balanceData[0] : {
+            balance: 0.00,
+            total_earned: 0.00,
+            last_updated: new Date().toISOString()
+        };
+
+        console.log('✅ Returning balance:', balance);
+        res.json(balance);
+    } catch (error) {
+        console.error('Balance API error:', error);
+        res.status(500).json({ error: 'Внутренняя ошибка сервера' });
+    }
+});
+
+// Получить баланс пользователя (старый путь для совместимости)
 router.get('/balance', authenticateToken, async (req, res) => {
     try {
         console.log('🔍 Balance API called for user:', req.user.id);
@@ -36,18 +65,166 @@ router.get('/balance', authenticateToken, async (req, res) => {
 // Получить историю транзакций пользователя
 router.get('/transactions', authenticateToken, async (req, res) => {
     try {
-        const { limit = 50, offset = 0 } = req.query;
+        const { limit = 50, offset = 0, type = 'all' } = req.query;
 
-        const { data: transactions, error } = await supabaseAdmin
-            .rpc('get_user_transactions', {
-                p_user_id: req.user.id,
-                p_limit: parseInt(limit),
-                p_offset: parseInt(offset)
-            });
+        let transactions;
+        let error;
 
-        if (error) {
-            console.error('Error fetching user transactions:', error);
-            return res.status(500).json({ error: 'Ошибка получения истории транзакций' });
+        if (type === 'qc-approved') {
+            // Получаем ОКК транзакции (только одобренные лиды с реальными заработками)
+            const { data, error: qcError } = await supabaseAdmin
+                .from('user_transactions')
+                .select(`
+                    id,
+                    amount,
+                    transaction_type,
+                    description,
+                    lead_id,
+                    created_at,
+                    leads!inner(
+                        comment,
+                        status,
+                        quality_reviews(
+                            qc_comment,
+                            status
+                        )
+                    )
+                `)
+                .eq('user_id', req.user.id)
+                .in('transaction_type', ['earned', 'bonus'])
+                .eq('leads.status', 'success')
+                .order('created_at', { ascending: false })
+                .limit(parseInt(limit))
+                .range(parseInt(offset), parseInt(offset) + parseInt(limit) - 1);
+
+            if (qcError) throw qcError;
+
+            // Фильтруем только одобренные ОКК лиды (те, за которые оператор реально получил деньги)
+            transactions = data
+                .filter(t => t.leads?.quality_reviews && t.leads.quality_reviews.length > 0)
+                .filter(t => t.leads.quality_reviews.some(qr => qr.status === 'approved'))
+                .map(t => {
+                    const qcReview = t.leads.quality_reviews[0];
+                    return {
+                        id: t.id,
+                        amount: t.amount,
+                        transaction_type: t.transaction_type,
+                        description: t.description,
+                        lead_id: t.lead_id,
+                        created_at: t.created_at,
+                        operator_comment: t.leads?.comment || '',
+                        qc_comment: qcReview?.qc_comment || '',
+                        qc_status: 'approved'
+                    };
+                });
+
+        } else if (type === 'qc-rejected') {
+            // Получаем отклоненные ОКК лиды (без заработка)
+            const { data, error: qcError } = await supabaseAdmin
+                .from('user_transactions')
+                .select(`
+                    id,
+                    amount,
+                    transaction_type,
+                    description,
+                    lead_id,
+                    created_at,
+                    leads!inner(
+                        comment,
+                        status,
+                        quality_reviews(
+                            qc_comment,
+                            status
+                        )
+                    )
+                `)
+                .eq('user_id', req.user.id)
+                .in('transaction_type', ['earned', 'bonus'])
+                .eq('leads.status', 'success')
+                .order('created_at', { ascending: false })
+                .limit(parseInt(limit))
+                .range(parseInt(offset), parseInt(offset) + parseInt(limit) - 1);
+
+            if (qcError) throw qcError;
+
+            // Фильтруем только отклоненные ОКК лиды
+            transactions = data
+                .filter(t => t.leads?.quality_reviews && t.leads.quality_reviews.length > 0)
+                .filter(t => t.leads.quality_reviews.some(qr => qr.status === 'rejected'))
+                .map(t => {
+                    const qcReview = t.leads.quality_reviews[0];
+                    return {
+                        id: t.id,
+                        amount: 0, // Отклоненные лиды не приносят денег
+                        transaction_type: 'rejected',
+                        description: t.description,
+                        lead_id: t.lead_id,
+                        created_at: t.created_at,
+                        operator_comment: t.leads?.comment || '',
+                        qc_comment: qcReview?.qc_comment || '',
+                        qc_status: 'rejected'
+                    };
+                });
+
+        } else if (type === 'regular') {
+            // Получаем обычные транзакции
+            const { data, error: regularError } = await supabaseAdmin
+                .from('user_transactions')
+                .select(`
+                    id,
+                    amount,
+                    transaction_type,
+                    description,
+                    lead_id,
+                    created_at,
+                    leads(
+                        status,
+                        quality_reviews(status)
+                    )
+                `)
+                .eq('user_id', req.user.id)
+                .in('transaction_type', ['earned', 'bonus'])
+                .order('created_at', { ascending: false })
+                .limit(parseInt(limit))
+                .range(parseInt(offset), parseInt(offset) + parseInt(limit) - 1);
+
+            if (regularError) throw regularError;
+
+            // Фильтруем обычные транзакции (исключая успешные лиды с одобренными ОКК)
+            transactions = data.filter(t => {
+                if (t.transaction_type === 'earned' || t.transaction_type === 'bonus') {
+                    // Это транзакция за лид - проверяем, что он не одобрен ОКК
+                    const lead = t.leads;
+                    if (!lead) return true;
+                    
+                    // Если лид успешный и есть одобренная ОКК проверка, исключаем
+                    if (lead.status === 'success' && 
+                        lead.quality_reviews && 
+                        lead.quality_reviews.some(qr => qr.status === 'approved')) {
+                        return false;
+                    }
+                }
+                return true; // Все остальные транзакции считаем обычными
+            }).map(t => ({
+                id: t.id,
+                amount: t.amount,
+                transaction_type: t.transaction_type,
+                description: t.description,
+                lead_id: t.lead_id,
+                created_at: t.created_at
+            }));
+
+        } else {
+            // Получаем все транзакции (старый способ)
+            const { data, error: allError } = await supabaseAdmin
+                .rpc('get_user_transactions', {
+                    p_user_id: req.user.id,
+                    p_limit: parseInt(limit),
+                    p_offset: parseInt(offset)
+                });
+
+            if (allError) throw allError;
+            transactions = data;
         }
 
         res.json(transactions || []);

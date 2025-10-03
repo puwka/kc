@@ -57,6 +57,38 @@ router.get('/overview', async (req, res) => {
             stats.total_earned = balanceData?.total_earned || 0;
         }
 
+        // Заработок за сегодня (скопировано с ОКК)
+        let earnedToday = 0;
+        const { data: tx, error: txErr } = await supabaseAdmin
+            .from('user_transactions')
+            .select('amount, description, created_at')
+            .eq('user_id', req.user.id);
+
+        if (!txErr && tx) {
+            // Текущее время в МСК
+            const mskNow = new Date(new Date().toLocaleString("en-US", {timeZone: "Europe/Moscow"}));
+            
+            // Начало и конец дня в МСК
+            const startOfDay = new Date(mskNow.getFullYear(), mskNow.getMonth(), mskNow.getDate());
+            const endOfDay = new Date(mskNow.getFullYear(), mskNow.getMonth(), mskNow.getDate(), 23, 59, 59, 999);
+            
+            // Конвертируем в UTC для сравнения с базой данных
+            const startOfDayUTC = new Date(startOfDay.toLocaleString("en-US", {timeZone: "UTC"}));
+            const endOfDayUTC = new Date(endOfDay.toLocaleString("en-US", {timeZone: "UTC"}));
+            
+            earnedToday = tx
+                .filter(t => {
+                    const tDate = new Date(t.created_at);
+                    const isInRange = tDate >= startOfDayUTC && tDate <= endOfDayUTC;
+                    const isPositive = parseFloat(t.amount || 0) > 0;
+                    
+                    return isInRange && isPositive;
+                })
+                .reduce((sum, t) => sum + parseFloat(t.amount || 0), 0);
+        }
+
+        stats.earnedToday = earnedToday;
+
         // Прозвоненные (все кроме новых)
         stats.called = processed;
 
